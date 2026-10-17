@@ -387,6 +387,14 @@ export const RACE = {
   countdownMs: 4000,
   /** Grace period after the winner finishes before the race is force-ended. */
   finishGraceMs: 20000,
+  /**
+   * Hard ceiling on a race, whether or not anyone finishes.
+   *
+   * The grace period above only starts counting when somebody crosses the line, so a race
+   * where nobody does has no end at all. There is one room, so a race that never ends is
+   * a room nobody else can get into. Six minutes is about twice a careful three-lap run.
+   */
+  maxRaceMs: 360000,
   /** Podium screen duration before returning to the lobby. */
   podiumMs: 10000,
   /** A car that falls below this Y is respawned at its last checkpoint. */

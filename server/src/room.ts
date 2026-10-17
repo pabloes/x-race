@@ -179,6 +179,10 @@ export class Room {
     const car = new CarSim(id, name, this.world.createVehicle(spawn.pos, spawn.yaw), spawn)
     car.lapStartMs = nowMs
     const player = new Player(id, name, connection, car)
+    // Arriving while a race is on makes you a spectator, not a car dropped onto a moving
+    // circuit two laps behind. The grid slot comes with the next lobby, which is the same
+    // place everyone else gets theirs.
+    if (this.phase !== 'lobby') this.park(player)
     this.players.set(id, player)
     this.trimBots()
 
@@ -259,6 +263,13 @@ export class Room {
     this.setSpectator(id, spectate, nowMs)
   }
 
+  /** Takes a car off the circuit: out of the world, and not falling through it either. */
+  private park(player: Player): void {
+    player.spectator = true
+    player.car.vehicle.reset({ x: -200, y: -60, z: -200 }, 0)
+    player.car.vehicle.setGravityScale(0)
+  }
+
   private setSpectator(id: number, spectate: boolean, nowMs: number): void {
     const player = this.players.get(id)
     if (!player || player.spectator === spectate) return
@@ -267,10 +278,7 @@ export class Room {
     this.playersDirty = true
     this.standingsDirty = true
     if (spectate) {
-      // Out of the world rather than left on the circuit, and with gravity off so it is
-      // not falling for the rest of the race.
-      player.car.vehicle.reset({ x: -200, y: -60, z: -200 }, 0)
-      player.car.vehicle.setGravityScale(0)
+      this.park(player)
       this.events.push({ t: 'leave', id })
       // Nobody left to race: end it rather than run a countdown for an empty grid.
       if (this.racerCount() === 0 && this.phase !== 'lobby') {
@@ -444,7 +452,11 @@ export class Room {
         const all = [...this.racers()]
         const allDone = all.length > 0 && all.every((r) => r.car.finished)
         const graceExpired = this.firstFinishMs > 0 && nowMs - this.firstFinishMs > RACE.finishGraceMs
-        if (allDone || graceExpired || all.length === 0) {
+        // A hard ceiling on the race, because the grace period only starts when somebody
+        // finishes: a driver who never does would otherwise hold the room open forever,
+        // and with one room that means nobody else gets a race.
+        const outOfTime = nowMs - this.raceStartMs > RACE.maxRaceMs
+        if (allDone || graceExpired || outOfTime || all.length === 0) {
           this.phase = 'finished'
           this.phaseEndsMs = nowMs + RACE.podiumMs
           this.events.push({ t: 'race-end', standings: this.standings() })
