@@ -35,8 +35,12 @@ export const menu = {
   setSpectator: (_on: boolean) => {}
 }
 
-/** Width the menu is drawn at before scaling: every size inside it is relative to this. */
+/** Size the menu is drawn at before scaling: everything inside it is relative to this. */
 const MENU_DESIGN_WIDTH = 420
+const MENU_DESIGN_HEIGHT = 300
+/** The button the menu folds into. */
+const TAB_DESIGN_WIDTH = 150
+const TAB_DESIGN_HEIGHT = 40
 
 /**
  * The menu's size, derived from the canvas.
@@ -48,12 +52,12 @@ const MENU_DESIGN_WIDTH = 420
  * proportions are then fixed by construction rather than by a clamp that happens to look
  * right on one monitor.
  */
-function menuMetrics(): { width: number; k: number } {
+function menuMetrics(): { width: number; k: number; canvasWidth: number; canvasHeight: number } {
   const canvas = UiCanvasInformation.getOrNull(engine.RootEntity)
-  const width = canvas
-    ? Math.max(300, Math.min(canvas.width * 0.36, canvas.height * 0.62))
-    : MENU_DESIGN_WIDTH
-  return { width, k: width / MENU_DESIGN_WIDTH }
+  const canvasWidth = canvas?.width ?? 1280
+  const canvasHeight = canvas?.height ?? 720
+  const width = Math.max(300, Math.min(canvasWidth * 0.36, canvasHeight * 0.62))
+  return { width, k: width / MENU_DESIGN_WIDTH, canvasWidth, canvasHeight }
 }
 
 export type HudState = {
@@ -101,6 +105,10 @@ export type HudState = {
   autoStart: boolean
   /** Watching instead of driving. */
   spectator: boolean
+  /** The menu is folded away into its button at the top of the screen. */
+  menuMinimised: boolean
+  /** 0 folded, 1 open. Eased every frame so the fold is a movement, not a cut. */
+  menuAnim: number
 }
 
 export const hud: HudState = {
@@ -136,7 +144,9 @@ export const hud: HudState = {
   mode: 'solo',
   bots: 0,
   autoStart: false,
-  spectator: false
+  spectator: false,
+  menuMinimised: false,
+  menuAnim: 1
 }
 
 const PANEL = Color4.create(0, 0, 0, 0.55)
@@ -234,29 +244,57 @@ function Row(props: { label: string; scale: number; children?: unknown }) {
  * decision to make: between races, or while spectating one.
  */
 function Menu() {
-  const { width, k } = menuMetrics()
+  const { width, k, canvasWidth, canvasHeight } = menuMetrics()
   const inLobby = hud.phase === 'lobby'
   if (!inLobby && !hud.spectator) return null
+
+  // Where the panel is between folded and open. Smoothstepped, so it leaves and arrives
+  // gently instead of sliding at a constant speed.
+  const t = hud.menuAnim
+  const ease = t * t * (3 - 2 * t)
+  const openWidth = width
+  const openHeight = MENU_DESIGN_HEIGHT * k
+  const tabWidth = TAB_DESIGN_WIDTH * k
+  const tabHeight = TAB_DESIGN_HEIGHT * k
+  const boxWidth = tabWidth + (openWidth - tabWidth) * ease
+  const boxHeight = tabHeight + (openHeight - tabHeight) * ease
+  const topWhenFolded = 12 * k
+  const topWhenOpen = Math.max(12 * k, (canvasHeight - openHeight) / 2)
+  const top = topWhenFolded + (topWhenOpen - topWhenFolded) * ease
+  const left = (canvasWidth - boxWidth) / 2
+  // The two faces of the same box. Crossing at the midpoint of the move means neither is
+  // ever drawn at a size it was not laid out for.
+  const showPanel = ease > 0.55
+  const showTab = ease < 0.45
+
   return (
     <UiEntity
       uiTransform={{
         positionType: 'absolute',
-        width: '100%',
-        height: '100%',
+        position: { left, top },
+        width: boxWidth,
+        height: boxHeight,
+        flexDirection: 'column',
+        alignItems: 'center',
         justifyContent: 'center',
-        alignItems: 'center'
+        padding: showPanel
+          ? { left: 18 * k, right: 18 * k, top: 14 * k, bottom: 16 * k }
+          : { left: 0, right: 0, top: 0, bottom: 0 }
+      }}
+      uiBackground={{ color: BAR }}
+      onMouseDown={() => {
+        if (hud.menuMinimised) hud.menuMinimised = false
       }}
     >
-      <UiEntity
-        uiTransform={{
-          width,
-          height: 'auto',
-          flexDirection: 'column',
-          alignItems: 'center',
-          padding: { left: 18 * k, right: 18 * k, top: 14 * k, bottom: 16 * k }
-        }}
-        uiBackground={{ color: BAR }}
-      >
+      {showTab ? (
+        <Label
+          value={hud.spectator ? 'SPECTATING · MENU' : 'MENU'}
+          fontSize={14 * k}
+          color={ACCENT}
+          textAlign="middle-center"
+        />
+      ) : null}
+      <UiEntity uiTransform={{ display: showPanel ? 'flex' : 'none', width: '100%', height: 'auto', flexDirection: 'column', alignItems: 'center' }}>
         <Label value="ELON ROADSTER RACE" fontSize={22 * k} color={ACCENT} />
         <Label
           value={
@@ -304,7 +342,10 @@ function Menu() {
               wide
               active
               accent={Color4.create(0.3, 0.9, 0.4, 1)}
-              onClick={() => menu.setSpectator(false)}
+              onClick={() => {
+                menu.setSpectator(false)
+                hud.menuMinimised = false
+              }}
             />
           ) : (
             // Wrapped rather than a fragment: the scene's JSX factory builds entities, and
@@ -318,7 +359,15 @@ function Menu() {
                 accent={Color4.create(0.3, 0.9, 0.4, 1)}
                 onClick={() => menu.start()}
               />
-              <Chip label="SPECTATE" scale={k} wide onClick={() => menu.setSpectator(true)} />
+              <Chip
+                label="SPECTATE"
+                scale={k}
+                wide
+                onClick={() => {
+                  menu.setSpectator(true)
+                  hud.menuMinimised = true
+                }}
+              />
             </UiEntity>
           )}
         </UiEntity>

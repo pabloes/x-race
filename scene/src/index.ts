@@ -157,6 +157,13 @@ function hudSystem(dt: number): void {
   hud.pingMs = connection.roundTripMs
   // Smoothed, because a per-frame reciprocal of dt is unreadable.
   hud.fps += (1 / Math.max(dt, 0.001) - hud.fps) * 0.1
+  // The menu folds into its button over a third of a second, rather than cutting, so it
+  // is obvious where it went and where to click to get it back.
+  const target = hud.menuMinimised ? 0 : 1
+  const step = dt / 0.32
+  hud.menuAnim = target > hud.menuAnim
+    ? Math.min(target, hud.menuAnim + step)
+    : Math.max(target, hud.menuAnim - step)
   hud.snapshotGapMs = connection.buffer.lastGapMs
   hud.trackMismatch = connection.trackMismatch
   hud.extrapolationMs = connection.buffer.extrapolatingMs
