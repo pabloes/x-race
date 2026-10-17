@@ -30,7 +30,7 @@ import { hud } from './ui'
  * Flip to true to take the measurement. It is off by default because the spike costs
  * frames by construction, and a frame lost here is input latency everywhere else.
  */
-export const SPIKE_CANNON = false
+export const SPIKE_CANNON = true
 
 /** Static geometry this far from the car is left out of the prediction world. */
 const NEARBY_RADIUS = 45
@@ -42,6 +42,9 @@ const ROLLBACKS_PER_SECOND = 30
 type Spike = {
   world: CANNON.World
   vehicle: CANNON.RaycastVehicle
+  /** Where the car started, to put it back when it wanders out of the measured area. */
+  home: CANNON.Vec3
+  boxes: number
   stepMs: number
   stepCount: number
   rollbackMs: number
@@ -113,6 +116,8 @@ function buildWorld(): Spike {
   return {
     world,
     vehicle,
+    home: new CANNON.Vec3(spawn.pos.x, spawn.pos.y + 1, spawn.pos.z),
+    boxes: added,
     stepMs: 0,
     stepCount: 0,
     rollbackMs: 0,
@@ -121,6 +126,24 @@ function buildWorld(): Spike {
     rollbackDebt: 0,
     frames: 0
   }
+}
+
+/**
+ * Keeps the car inside the measured patch.
+ *
+ * The cost being measured is the cost of a car *on the track*: wheels in contact, boxes in
+ * the broadphase, contacts being solved. A car that has driven out of the 45 m of geometry
+ * is in free space, where a step costs almost nothing and the measurement would flatter
+ * itself into a wrong decision.
+ */
+function recall(s: Spike): void {
+  const body = s.vehicle.chassisBody
+  const away = body.position.distanceTo(s.home)
+  if (away < 35) return
+  body.position.copy(s.home)
+  body.velocity.set(0, 0, 0)
+  body.angularVelocity.set(0, 0, 0)
+  body.quaternion.set(0, 0, 0, 1)
 }
 
 function drive(s: Spike): void {
@@ -136,6 +159,7 @@ function system(dt: number): void {
   const s = spike
   s.elapsed += dt
   s.frames++
+  recall(s)
   drive(s)
 
   const stepStart = Date.now()
@@ -162,7 +186,7 @@ function system(dt: number): void {
     // preview, and the whole point of this file is a number someone can read.
     hud.spike =
       `cannon ${perStep.toFixed(2)} ms/paso · rollback ${perRollback.toFixed(2)} ms · ` +
-      `${budget.toFixed(1)}% de CPU`
+      `${budget.toFixed(1)}% CPU · ${s.boxes} cajas`
     console.log(`[spike] ${hud.spike} · ${(s.frames / s.elapsed).toFixed(0)} fps`)
     s.stepMs = 0
     s.stepCount = 0
