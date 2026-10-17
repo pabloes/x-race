@@ -319,14 +319,18 @@ def write_glb(path, parts):
     return len(glb)
 
 
-def pbr(colour, metallic=0.6, roughness=0.35, emissive=None, strength=0.0, alpha=None):
+def pbr(colour, metallic=0.6, roughness=0.35, emissive=None, strength=0.0, alpha=None,
+        double_sided=False):
     material = {
         'pbrMetallicRoughness': {
             'baseColorFactor': list(colour) + [1.0 if alpha is None else alpha],
             'metallicFactor': metallic,
             'roughnessFactor': roughness
         },
-        'doubleSided': False
+        # Single-sided by default because the generated shapes are closed. An imported
+        # model is usually not: car panels are modelled as surfaces, and rendering them
+        # from one side only is what turns a car into a car with holes in it.
+        'doubleSided': double_sided
     }
     if emissive:
         material['emissiveFactor'] = list(emissive)

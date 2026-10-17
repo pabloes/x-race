@@ -60,10 +60,10 @@ const BODY_MODEL = (id: number): string =>
  * belong in. The suspension travel from the snapshot is applied on top of these.
  */
 const WHEELS = [
-  { model: 'models/car-wheel-fl.glb', at: { x: -0.788, y: -0.321, z: 1.337 } },
-  { model: 'models/car-wheel-fr.glb', at: { x: 0.788, y: -0.321, z: 1.337 } },
-  { model: 'models/car-wheel-rl.glb', at: { x: -0.812, y: -0.308, z: -1.387 } },
-  { model: 'models/car-wheel-rr.glb', at: { x: 0.812, y: -0.308, z: -1.387 } }
+  { model: 'models/car-wheel-fl.glb', at: { x: -0.784, y: -0.321, z: 1.341 } },
+  { model: 'models/car-wheel-fr.glb', at: { x: 0.784, y: -0.321, z: 1.341 } },
+  { model: 'models/car-wheel-rl.glb', at: { x: -0.797, y: -0.308, z: -1.389 } },
+  { model: 'models/car-wheel-rr.glb', at: { x: 0.797, y: -0.308, z: -1.389 } }
 ]
 
 type CarVisual = {

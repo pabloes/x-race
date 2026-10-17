@@ -37,6 +37,8 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 MODELS = os.path.join(os.path.dirname(HERE), 'models')
 SOURCE = os.path.join(MODELS, 'tesla_roadster.glb')
+# The unpacked copy next to it carries the licence the model is used under.
+LICENCE = os.path.join(MODELS, 'tesla_roadster', 'license.txt')
 
 spec = importlib.util.spec_from_file_location('make_car', os.path.join(HERE, 'make-car.py'))
 make_car = importlib.util.module_from_spec(spec)
@@ -182,17 +184,25 @@ def to_mesh(pieces, transform, keep=None):
 
 
 def material_for(name, raw, body_colour=None):
+    """
+    The source material, carried over rather than reinvented.
+
+    `doubleSided` especially: every material in this model is double sided, the panels are
+    open surfaces, and dropping that flag is what put holes through the car.
+    """
     pbr = raw.get('pbrMetallicRoughness', {})
-    colour = pbr.get('baseColorFactor', [0.8, 0.8, 0.8, 1.0])[:3]
+    colour = pbr.get('baseColorFactor', [1.0, 1.0, 1.0, 1.0])[:3]
     if name == 'Body' and body_colour is not None:
         colour = list(body_colour)
     emissive, strength = EMISSIVE.get(name, (None, 0.0))
     return make_car.pbr(
         colour,
-        metallic=pbr.get('metallicFactor', 0.2) or 0.0,
-        roughness=pbr.get('roughnessFactor', 0.5) or 0.05,
+        # glTF's own defaults when a factor is absent, not invented ones.
+        metallic=pbr.get('metallicFactor', 1.0),
+        roughness=pbr.get('roughnessFactor', 1.0),
         emissive=emissive,
-        strength=strength
+        strength=strength,
+        double_sided=raw.get('doubleSided', False)
     )
 
 
@@ -228,8 +238,17 @@ def main():
 
         placed = to_mesh(wheel_pieces, place, keep)
         points = np.vstack([m.positions for m, _ in placed.values()])
-        hub = points.mean(axis=0)
-        hub[1] = (points[:, 1].min() + points[:, 1].max()) / 2
+        # The centre of the bounding box, not the average vertex: a rim carries far more
+        # vertices than a tyre, so the average sits off the axle and the wheel would
+        # wobble as it span.
+        hub = (points.min(axis=0) + points.max(axis=0)) / 2
+        # Across the car, though, the box is dragged inboard by the brake disc behind the
+        # wheel, and that axis is the one the steering swings about. The tyre is symmetric
+        # about the real centre plane, so it is the one that gets asked.
+        tyre = [m for name, (m, _) in placed.items() if name in ('Tire', 'Logo')]
+        if tyre:
+            xs = np.vstack([m.positions for m in tyre])[:, 0]
+            hub[0] = (xs.min() + xs.max()) / 2
         parts = []
         for name, (mesh, raw) in placed.items():
             mesh.positions = [tuple(np.array(p) - hub) for p in mesh.positions]
