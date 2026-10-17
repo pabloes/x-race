@@ -122,6 +122,10 @@ async function run(s: Scenario): Promise<Result> {
   // Checkpoints only count in lap order, so pretend the car already passed the previous
   // one; otherwise an isolated scenario can never register the checkpoint under test.
   if (s.requireCp !== undefined) car.cp = s.requireCp - 1
+  // Full battery. These scenarios measure what the car does, not what the charge economy
+  // allows: a race starts at a tenth of a bar on purpose, and a thruster test that fails
+  // because the bar ran out is testing the wrong thing.
+  car.charge = 1
   // Launch the car at the scenario speed along its own forward axis.
   const forward = quatRotate(quatFromEulerDegrees(0, s.start.yaw, 0), FORWARD)
   car.vehicle.setLinvel({ x: forward.x * s.speed, y: 0, z: forward.z * s.speed })

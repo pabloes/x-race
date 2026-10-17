@@ -187,6 +187,10 @@ export class CarSim {
     this.lineIndex = line.index
     const offTrack = line.distance > DRIVABLE_HALF_WIDTH
 
+    // How sideways the car is, which decides both what the rear tyres do and what the
+    // battery earns.
+    const slipAngle = Math.abs(Math.atan2(vdot(linvel, localRight), vdot(linvel, localForward)))
+
     const inInvertZone = INVERT_TRIGGERS.some((t) => pointInBox(pos, t))
     if (inInvertZone && !this.inverted && !this.grounded && !this.trick) {
       // The Roadster move: half-roll onto the ceiling and let inverted gravity hold it there.
@@ -248,6 +252,11 @@ export class CarSim {
       this.charge = clamp(this.charge - CHARGE.drainPerSecond * dt, 0, 1)
     } else if (this.thrusting) {
       // already drained above
+    } else if (this.grounded && absSpeed > 8 && slipAngle > CAR.driftSlipAngle) {
+      // Sliding charges the battery, and the further sideways the car is the faster.
+      // Capped at twice the trigger angle so a spin is not a jackpot.
+      const amount = Math.min(slipAngle / (CAR.driftSlipAngle * 2), 1)
+      this.charge = clamp(this.charge + CHARGE.driftRegenPerSecond * amount * dt, 0, 1)
     } else if (hasBit(this.bits, InputBit.Brake) && absSpeed > 2) {
       this.charge = clamp(this.charge + CHARGE.regenBrakingPerSecond * dt, 0, 1)
     } else if (!hasBit(this.bits, InputBit.Throttle) && absSpeed > 1) {
@@ -285,7 +294,6 @@ export class CarSim {
     // and tyres that grip back up the moment the angle builds kill the slide before the
     // player can enjoy it. The yaw controller above still commands a rate, so letting go
     // here lengthens the drift rather than turning it into a spin.
-    const slipAngle = Math.abs(Math.atan2(vdot(linvel, localRight), vdot(linvel, localForward)))
     const sliding = this.grounded && absSpeed > 8 && slipAngle > CAR.driftSlipAngle
     if (handbrake) {
       brakeForce = CAR.handbrakeForce

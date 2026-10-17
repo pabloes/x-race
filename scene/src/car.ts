@@ -232,12 +232,17 @@ export function renderCar(car: SampledCar): void {
   // the flames always read as the force that is actually holding the car where it is.
   const thrusting = (car.flags & CarFlag.Thrusting) !== 0 && visible
   const inverted = (car.flags & CarFlag.Inverted) !== 0
-  const bellyOn = thrusting && !inverted
   const flanksOn = thrusting && inverted
-  // Falling with the pack idle: a stub of flame, so you can see where the thrust is about
-  // to come from before you ask for it. The full jets take over the moment you do.
+  // Coming down. Two stages, and they are not decoration for its own sake: the second one
+  // is the landing assist actually firing on the server, so what you see is what is
+  // holding the car flat and slowing the fall.
+  //  - falling gently: a stub of pilot flame, telling you where the thrust will come from;
+  //  - falling hard enough for the assist: the full belly jets, as the retro burn.
   const airborne = (car.flags & CarFlag.Airborne) !== 0
-  const pilotsOn = visible && airborne && !inverted && !thrusting && car.vel.y < -PILOT_FALL_SPEED
+  const falling = visible && airborne && !inverted && !thrusting
+  const landingBurn = falling && car.vel.y < -CAR.landingFallSpeed
+  const pilotsOn = falling && !landingBurn && car.vel.y < -PILOT_FALL_SPEED
+  const bellyOn = (thrusting && !inverted) || landingBurn
   if (visual.bellyOn !== bellyOn) {
     visual.bellyOn = bellyOn
     for (const entity of visual.belly) VisibilityComponent.getMutable(entity).visible = bellyOn

@@ -294,11 +294,15 @@ export const CAR = {
   selfRightDamping: 2600,
 
   /**
-   * Cold-gas thrusters, on the space bar: a straight push along world up, strong enough
-   * to beat gravity and lift the car (2.2 g net). Named after the SpaceX package the real
-   * Roadster is supposed to carry.
+   * Cold-gas thrusters, on the space bar: a straight push along world up. Named after the
+   * SpaceX package the real Roadster is supposed to carry.
+   *
+   * Gravity is switched off for the chassis while they fire, so this force is the whole
+   * acceleration rather than a margin over the car's weight: 42000 N meant 35 m/s² and the
+   * car went up like a firework. 13000 is a brisk 11 m/s², which lifts it off the road
+   * without losing sight of it.
    */
-  thrusterForce: 42000,
+  thrusterForce: 13000,
   /** Sideways/forward bleed while thrusting, so hovering does not feel frictionless. */
   thrusterDrag: 0.3,
   /**
@@ -311,16 +315,28 @@ export const CAR = {
 // --- Charge bar (battery) ---
 
 export const CHARGE = {
-  /** Bar is 0..1. */
-  initial: 0.35,
+  /** Bar is 0..1. You start with almost nothing and earn the rest by driving. */
+  initial: 0.1,
   /** Regen per second while coasting or braking (regenerative braking). */
-  regenPerSecond: 0.06,
+  regenPerSecond: 0.02,
   /** Regen per second while braking hard. */
-  regenBrakingPerSecond: 0.22,
+  regenBrakingPerSecond: 0.06,
+  /**
+   * Regen per second at full drift angle, scaled down to nothing as the car straightens.
+   *
+   * This is where the charge actually comes from. Coasting pays a trickle, so a lap driven
+   * straight and tidy never fills the bar: the thrusters and the boost are paid for with
+   * the thing that costs time, which is sliding the car about and throwing it off ramps.
+   */
+  driftRegenPerSecond: 0.45,
   /** Drain per second while boosting. */
   drainPerSecond: 0.42,
-  /** Drain per second while the thrusters are firing. Deliberately costlier than boost. */
-  thrusterDrainPerSecond: 0.55,
+  /**
+   * Drain per second while the thrusters are firing. Costlier than boost, but not so
+   * costly that the 10% you start with is gone in a twentieth of a second, which is what
+   * 0.55 meant once the bar started nearly empty: the thrusters simply did not fire.
+   */
+  thrusterDrainPerSecond: 0.35,
   /** Minimum charge needed to start a boost (prevents stuttering at ~0). */
   boostFloor: 0.08,
   /** Reward for a clean landing after an airborne trick. */

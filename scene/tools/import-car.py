@@ -47,13 +47,18 @@ spec.loader.exec_module(make_car)
 CAR_LENGTH = 4.4
 # Chassis centre above the contact patch, from the wheel anchors and the wheel radius.
 RIDE_HEIGHT = 0.65
-# Node groups that are wheels, by name in the source file.
+# Node groups that are wheels, by name in the source file: the tyres and the rims.
 WHEEL_GROUPS = {
-    'Cube.001_1', 'Cylinder.001_5', 'Cylinder.005_7',   # rear axle
-    'Cube.003_3', 'Cylinder_4', 'Cylinder.004_6'        # front axle
+    'Cube.001_1', 'Cylinder.005_7',   # rear tyre, rear rim
+    'Cube.003_3', 'Cylinder.004_6'    # front tyre, front rim
 }
-# The ground plane the model was photographed on.
-SKIP_GROUPS = {'Plane_9'}
+# Dropped. `Plane_9` is the 12.8 m ground plane the model was photographed on. The two
+# `Cylinder` groups are the springs, dampers and brake discs: they belong to the car, not
+# to the wheel, so splitting them per wheel threw them outboard where they read as red
+# coil springs hanging in the air beside each tyre. Keeping them with the body would park
+# them inside the arches correctly but motionless; they are small, mostly hidden behind
+# the rims, and not worth either problem.
+SKIP_GROUPS = {'Plane_9', 'Cylinder_4', 'Cylinder.001_5'}
 # Materials the scene should light up, and what they should look like.
 EMISSIVE = {
     'Tail_Light': ((1.0, 0.05, 0.03), 6.0),
