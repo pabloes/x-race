@@ -32,7 +32,10 @@ open 'decentraland://realm=http%3A%2F%2Flocalhost%3A8000&position=15,3'
 pregunta a `getRealm()` si está en preview y elige `LOCAL_SERVER_URL` o
 `REMOTE_SERVER_URL`. En preview, el de localhost; publicada, el de CapRover. Solo hay que
 editar ese fichero cuando el servidor *remoto* cambie de dominio. La consola del explorador
-imprime cuál ha elegido: `[roadster] server wss://…`.
+imprime cuál ha elegido, y el HUD lo muestra en la esquina inferior derecha.
+
+Para **probar el servidor desplegado desde la preview** (la única forma de sentir la
+latencia real sin publicar), pon `PREVIEW_AGAINST_REMOTE = true` en ese mismo fichero.
 
 Controles:
 

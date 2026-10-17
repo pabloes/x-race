@@ -20,11 +20,23 @@ export const LOCAL_SERVER_URL = 'ws://localhost:8787'
 export const REMOTE_SERVER_URL = 'wss://elon-roadster-race.zeroxwork.com'
 
 /**
+ * Drive the deployed server from the preview.
+ *
+ * Normally the preview talks to `npm run server` on this machine, which is what you want
+ * while changing the physics. It is not what you want when the question is how the game
+ * feels over a real connection: that needs the preview pointed at the deployed server,
+ * and this is the one line that does it. Harmless if it is left on — a published scene
+ * uses the remote server either way.
+ */
+const PREVIEW_AGAINST_REMOTE = true
+
+/**
  * The server this run should talk to: the local one in preview, the deployed one when
  * published. If the realm cannot be read for any reason, the deployed server is the safe
  * answer — a published scene pointing at localhost reaches nobody.
  */
 export async function serverUrl(): Promise<string> {
+  if (PREVIEW_AGAINST_REMOTE) return REMOTE_SERVER_URL
   try {
     const { realmInfo } = await getRealm({})
     return realmInfo?.isPreview ? LOCAL_SERVER_URL : REMOTE_SERVER_URL
