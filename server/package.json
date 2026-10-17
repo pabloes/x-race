@@ -1,0 +1,30 @@
+{
+  "name": "@teslaroadster/server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Authoritative fixed-timestep physics server for the Tesla Roadster stunt racer",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "build": "npm run typecheck && esbuild src/index.ts --bundle --platform=node --format=esm --target=node20 --packages=external --outfile=dist/server.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "bot": "tsx src/test-client.ts",
+    "harness": "tsx src/harness.ts",
+    "test:features": "tsx src/feature-tests.ts"
+  },
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.14.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/ws": "^8.5.13",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

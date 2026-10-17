@@ -1,0 +1,9 @@
+# Nothing here belongs in the server image: the scene is published to Decentraland, not
+# shipped to the VPS, and node_modules is reinstalled inside the build from the lockfile.
+node_modules
+**/node_modules
+scene
+dist
+**/dist
+.git
+*.log

@@ -1,0 +1,25 @@
+{
+  "name": "@teslaroadster/scene",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Decentraland SDK7 client for the Tesla Roadster stunt racer",
+  "scripts": {
+    "start": "sdk-commands start",
+    "deploy": "sdk-commands deploy",
+    "build": "sdk-commands build",
+    "upgrade-sdk": "npm install --save-dev @dcl/sdk@latest"
+  },
+  "devDependencies": {
+    "@dcl/js-runtime": "7.30.1",
+    "@dcl/sdk": "latest"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "prettier": {
+    "semi": false,
+    "singleQuote": true,
+    "printWidth": 120,
+    "trailingComma": "none"
+  }
+}
