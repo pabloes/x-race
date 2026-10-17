@@ -11,7 +11,7 @@ import { createServer } from 'node:http'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { NET, TICK_MS } from '../../shared/constants'
 import { parseClientMessage, type ServerMessage } from '../../shared/protocol'
-import { initRapier, RapierWorld } from './physics/rapier'
+import { createWorld, initPhysics } from './physics'
 import { Room, type Connection } from './room'
 
 const PORT = Number(process.env.PORT ?? NET.defaultPort)
@@ -19,8 +19,8 @@ const PORT = Number(process.env.PORT ?? NET.defaultPort)
 const MAX_CATCHUP_TICKS = 8
 
 async function main(): Promise<void> {
-  await initRapier()
-  const world = new RapierWorld()
+  await initPhysics()
+  const world = createWorld()
   const room = new Room(world)
   const started = performance.now()
   const now = () => performance.now() - started

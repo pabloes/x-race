@@ -18,7 +18,7 @@ import { CHECKPOINTS, TRACK } from '../../shared/track'
 import { BOT_SKILLS, BotDriver } from './bot-driver'
 import { CarSim } from './car-sim'
 import { pointInBox } from './geometry'
-import { initRapier, RapierWorld } from './physics/rapier'
+import { createWorld, initPhysics } from './physics'
 
 const UP: Vec3 = { x: 0, y: 1, z: 0 }
 const VERBOSE = process.env.VERBOSE === '1'
@@ -30,8 +30,8 @@ async function main(): Promise<void> {
   const seconds = Number(process.argv[2] ?? 90)
   const carCount = Number(process.argv[3] ?? 1)
 
-  await initRapier()
-  const world = new RapierWorld()
+  await initPhysics()
+  const world = createWorld()
   console.log(`engine: ${world.engineName}`)
   console.log(
     `track: ${TRACK.id}  surfaces=${TRACK.surfaces.length}  obstacles=${TRACK.obstacles.length}  ` +

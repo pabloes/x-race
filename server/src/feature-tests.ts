@@ -15,7 +15,7 @@ import { quatFromEulerDegrees, quatRotate, vlen, type Vec3 } from '../../shared/
 import { InputBit } from '../../shared/protocol'
 import { CHECKPOINTS, TRACK } from '../../shared/track'
 import { CarSim } from './car-sim'
-import { initRapier, RapierWorld } from './physics/rapier'
+import { createWorld, initPhysics } from './physics'
 
 const UP: Vec3 = { x: 0, y: 1, z: 0 }
 const FORWARD: Vec3 = { x: 0, y: 0, z: 1 }
@@ -117,7 +117,7 @@ type Result = {
 }
 
 async function run(s: Scenario): Promise<Result> {
-  const world = new RapierWorld()
+  const world = createWorld()
   const car = new CarSim(0, s.name, world.createVehicle(s.start.pos, s.start.yaw), s.start)
   // Checkpoints only count in lap order, so pretend the car already passed the previous
   // one; otherwise an isolated scenario can never register the checkpoint under test.
@@ -253,7 +253,7 @@ const SCENARIOS: Scenario[] = [
 ]
 
 async function main(): Promise<void> {
-  await initRapier()
+  await initPhysics()
   let failures = 0
   let group = ''
   for (const s of SCENARIOS) {

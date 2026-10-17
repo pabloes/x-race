@@ -61,7 +61,11 @@ function buildWorld(): Spike {
   world.broadphase = new CANNON.SAPBroadphase(world)
   world.defaultContactMaterial.friction = 0.6
 
-  const spawn = TRACK.spawns[0]
+  // Anchored at the busiest point of the circuit rather than the grid. The grid sits on
+  // a 30 m slab of straight with three pieces of asphalt around it, which is below the
+  // median for the lap: measuring there would answer an easier question than the one
+  // being asked. Point 176 carries 16 surfaces within the radius, the most of any.
+  const spawn = { pos: TRACK.centreline[176], yaw: 0 }
   let added = 0
   for (const surface of TRACK.surfaces) {
     if (surface.kind === 'ground') continue
