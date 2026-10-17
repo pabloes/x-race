@@ -563,28 +563,39 @@ function Messages() {
 }
 
 /**
- * A lamp for the rear boost.
+ * A lamp for the rear boost, in a box of its own beside the speed panel.
  *
  * Three states rather than two, because two could not explain what the player was
  * seeing: lit means the server has the boost engaged, amber means this client is asking
  * for it and the car is not doing it — an empty battery, or the double tap still latched
  * with the throttle held — and dark means nothing is being asked for. The middle state is
  * the one that answers "why does it look like the boost is stuck on".
+ *
+ * Outside the speed panel, and a fixed width: inside it, the lamp shifted left and right
+ * as the speed went from two digits to three, which is movement that means nothing.
  */
-function Led(props: { on: boolean; asking: boolean; label: string }) {
-  const colour = props.on
+function BoostLed() {
+  const on = (hud.flags & CarFlag.Boosting) !== 0
+  const asking = hud.boostRequested
+  const colour = on
     ? Color4.create(1, 0.85, 0.2, 1)
-    : props.asking
+    : asking
       ? Color4.create(0.75, 0.45, 0.05, 1)
       : Color4.create(1, 1, 1, 0.14)
   return (
-    <UiEntity uiTransform={{ width: 'auto', flexDirection: 'row', alignItems: 'center', margin: { left: 12 } }}>
-      <UiEntity uiTransform={{ width: 14, height: 14 }} uiBackground={{ color: colour }} />
-      <Label
-        value={props.label}
-        fontSize={12}
-        color={props.on || props.asking ? Color4.White() : Color4.Gray()}
-      />
+    <UiEntity
+      uiTransform={{
+        width: 62,
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 6,
+        margin: { left: 8 }
+      }}
+      uiBackground={{ color: PANEL }}
+    >
+      <UiEntity uiTransform={{ width: 18, height: 18 }} uiBackground={{ color: colour }} />
+      <Label value="BOOST" fontSize={11} color={on || asking ? Color4.White() : Color4.Gray()} />
     </UiEntity>
   )
 }
@@ -600,18 +611,11 @@ function SpeedPanel() {
       uiTransform={{ width: 330, flexDirection: 'column', alignItems: 'center', padding: 9 }}
       uiBackground={{ color: PANEL }}
     >
-      <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-        <Label
-          value={`${Math.round(hud.speedKmh)} km/h`}
-          fontSize={26}
-          color={boosting ? Color4.create(1, 0.85, 0.2, 1) : Color4.White()}
-        />
-        <Led
-          on={boosting}
-          asking={hud.boostRequested}
-          label="BOOST"
-        />
-      </UiEntity>
+      <Label
+        value={`${Math.round(hud.speedKmh)} km/h`}
+        fontSize={26}
+        color={boosting ? Color4.create(1, 0.85, 0.2, 1) : Color4.White()}
+      />
       {/* Charge bar: an outer track with an inner fill scaled by the battery level. */}
       <UiEntity
         uiTransform={{ width: 292, height: 16, margin: { top: 4 } }}
@@ -721,7 +725,10 @@ function Hud() {
         }}
       >
         <UiEntity uiTransform={{ flexGrow: 1, flexBasis: 0, height: 1 }} />
-        <SpeedPanel />
+        <UiEntity uiTransform={{ width: 'auto', flexDirection: 'row', alignItems: 'flex-end' }}>
+          <SpeedPanel />
+          <BoostLed />
+        </UiEntity>
         <StatusLine />
       </UiEntity>
     </UiEntity>
