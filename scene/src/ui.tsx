@@ -35,19 +35,25 @@ export const menu = {
   setSpectator: (_on: boolean) => {}
 }
 
+/** Width the menu is drawn at before scaling: every size inside it is relative to this. */
+const MENU_DESIGN_WIDTH = 420
+
 /**
- * How much to multiply the menu's sizes by.
+ * The menu's size, derived from the canvas.
  *
- * The UI is laid out in pixels, which on a 4K screen is a postage stamp and on a small
- * window is a wall. Everything in the menu is written at a 1280x720 design size and
- * multiplied by this, so the panel keeps its proportions and grows with whichever of the
- * two dimensions is tighter. Clamped so it never becomes unreadable or absurd.
+ * The UI is laid out in pixels, which on a 4K screen is a postage stamp and in a small
+ * window is a wall. So the panel is given a share of the screen — a bit over a third of
+ * the width, and never so tall that it runs off a short window — and everything inside it
+ * is multiplied by `k`, the ratio between that width and the width it was drawn at. The
+ * proportions are then fixed by construction rather than by a clamp that happens to look
+ * right on one monitor.
  */
-function uiScale(): number {
+function menuMetrics(): { width: number; k: number } {
   const canvas = UiCanvasInformation.getOrNull(engine.RootEntity)
-  if (!canvas) return 1
-  const fit = Math.min(canvas.width / 1280, canvas.height / 720)
-  return Math.max(0.65, Math.min(fit, 2.2))
+  const width = canvas
+    ? Math.max(300, Math.min(canvas.width * 0.36, canvas.height * 0.62))
+    : MENU_DESIGN_WIDTH
+  return { width, k: width / MENU_DESIGN_WIDTH }
 }
 
 export type HudState = {
@@ -186,7 +192,14 @@ function Chip(props: {
   )
 }
 
-/** One labelled row of the menu: a caption on the left, its controls on the right. */
+/**
+ * One setting of the menu: its caption above its controls.
+ *
+ * Side by side was the obvious layout and it did not survive contact with the renderer:
+ * a Label is sized by its own text, not by the box it is given, so the captions ran under
+ * the chips at any scale where the text was wider than the column. Stacked, there is
+ * nothing to collide with.
+ */
 function Row(props: { label: string; scale: number; children?: unknown }) {
   const k = props.scale
   return (
@@ -194,17 +207,17 @@ function Row(props: { label: string; scale: number; children?: unknown }) {
       uiTransform={{
         width: '100%',
         height: 'auto',
-        flexDirection: 'row',
+        flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
-        margin: { top: 2 * k, bottom: 2 * k }
+        margin: { top: 4 * k, bottom: 2 * k }
       }}
     >
-      <UiEntity uiTransform={{ width: 86 * k, justifyContent: 'flex-end' }}>
-        <Label value={props.label} fontSize={13 * k} color={Color4.Gray()} textAlign="middle-right" />
+      <Label value={props.label} fontSize={12 * k} color={Color4.Gray()} textAlign="middle-center" />
+      <UiEntity
+        uiTransform={{ width: '100%', height: 'auto', flexDirection: 'row', justifyContent: 'center' }}
+      >
+        {props.children}
       </UiEntity>
-      <UiEntity uiTransform={{ width: 16 * k, height: 1 }} />
-      {props.children}
     </UiEntity>
   )
 }
@@ -221,7 +234,7 @@ function Row(props: { label: string; scale: number; children?: unknown }) {
  * decision to make: between races, or while spectating one.
  */
 function Menu() {
-  const k = uiScale()
+  const { width, k } = menuMetrics()
   const inLobby = hud.phase === 'lobby'
   if (!inLobby && !hud.spectator) return null
   return (
@@ -236,7 +249,7 @@ function Menu() {
     >
       <UiEntity
         uiTransform={{
-          width: 420 * k,
+          width,
           height: 'auto',
           flexDirection: 'column',
           alignItems: 'center',
@@ -326,7 +339,7 @@ function Menu() {
  * the top, so the middle of the screen belongs to the circuit.
  */
 function RaceBar() {
-  const k = uiScale()
+  const { k } = menuMetrics()
   if (hud.spectator || hud.phase === 'lobby') return null
   return (
     <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', justifyContent: 'center', margin: { top: 10 } }}>

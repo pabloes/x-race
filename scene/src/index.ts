@@ -179,7 +179,9 @@ function hudSystem(dt: number): void {
       const seconds = Math.ceil(race.phaseMs / 1000)
       hud.bigMessage = seconds > 0 ? String(seconds) : 'GO!'
     } else if (race.phase === 'lobby') {
-      hud.bigMessage = race.autoStart ? 'WAITING FOR DRIVERS' : 'PRESS START RACE'
+      // The menu is on screen in the lobby and says this itself; printing it again in the
+      // middle of the screen just put two texts on top of each other.
+      hud.bigMessage = ''
     } else if (race.phase === 'racing' && hud.bigMessage !== 'GO!' && !hud.bigMessage.startsWith('FINISHED')) {
       hud.bigMessage = ''
     }
