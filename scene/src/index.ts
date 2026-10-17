@@ -19,7 +19,6 @@ import { CarFlag, InputBit, type GameEvent, type PlayerInfo, type Standing } fro
 import { cheer, silenceMissing, updateCarAudio } from './audio'
 import { CHECKPOINTS } from '../../shared/track'
 import { carRoot, hideMissing, renderCar } from './car'
-import { updateTrails } from './lighttrails'
 import { updateSkidmarks } from './skidmarks'
 import { attachTo, detach } from './camera'
 import { PLAYER_NAME, serverUrl } from './config'
@@ -112,7 +111,6 @@ function renderSystem(): void {
   for (const [, car] of cars) {
     renderCar(car)
     updateSkidmarks(car)
-    updateTrails(car, localNow)
     const root = carRoot(car.id)
     if (root !== null) updateCarAudio(car, root, braking && car.id === connection.playerId)
   }
