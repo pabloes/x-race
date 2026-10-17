@@ -107,6 +107,8 @@ export type HudState = {
   spectator: boolean
   /** The menu is folded away into its button at the top of the screen. */
   menuMinimised: boolean
+  /** Previous frame's role, to fold the menu the moment you become a spectator. */
+  wasSpectator: boolean
   /** 0 folded, 1 open. Eased every frame so the fold is a movement, not a cut. */
   menuAnim: number
 }
@@ -146,6 +148,7 @@ export const hud: HudState = {
   autoStart: false,
   spectator: false,
   menuMinimised: false,
+  wasSpectator: false,
   menuAnim: 1
 }
 
@@ -250,6 +253,12 @@ function Menu() {
 
   // Where the panel is between folded and open. Smoothstepped, so it leaves and arrives
   // gently instead of sliding at a constant speed.
+  // Spectating is a decision to watch, so the menu stays out of the way until asked for,
+  // however the player got there — the button, a disconnect, or the race starting without
+  // them. The flag is the player's; this only makes sure it follows the role.
+  if (hud.spectator && !hud.wasSpectator) hud.menuMinimised = true
+  hud.wasSpectator = hud.spectator
+
   const t = hud.menuAnim
   const ease = t * t * (3 - 2 * t)
   const openWidth = width
@@ -282,9 +291,10 @@ function Menu() {
           : { left: 0, right: 0, top: 0, bottom: 0 }
       }}
       uiBackground={{ color: BAR }}
-      onMouseDown={() => {
-        if (hud.menuMinimised) hud.menuMinimised = false
-      }}
+      // Only while folded. Pointer events reach the parent too, so an always-on handler
+      // here caught the click on SPECTATE as well and reopened the panel in the same
+      // frame it was asked to close: the menu looked like it simply ignored the button.
+      onMouseDown={showTab ? () => { hud.menuMinimised = false } : undefined}
     >
       {showTab ? (
         <Label
