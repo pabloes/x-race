@@ -28,6 +28,16 @@ import { SPIKE_CANNON, startCannonSpike } from './spike-cannon'
 import { buildTrack } from './track-render'
 import { hud, menu, setupUi } from './ui'
 
+/**
+ * What the speedometer multiplies the real speed by.
+ *
+ * Display only: the simulation is unchanged, and every distance on this circuit is laid
+ * out against the real figure. The car tops out at 30 m/s, which is a true 108 km/h, and
+ * at the scale of a Decentraland parcel that reads as slower than it feels. 1.5 puts the
+ * needle where the driving says it should be: about 160 flat out, 215 on boost.
+ */
+const SPEEDO_EXAGGERATION = 1.5
+
 /** Monotonic scene clock in ms, accumulated from frame deltas. */
 let localNow = 0
 let players: PlayerInfo[] = []
@@ -130,7 +140,7 @@ function renderSystem(): void {
   if (mine) {
     const root = carRoot(mine.id)
     if (root !== null) attachTo(root)
-    hud.speedKmh = vlen(mine.vel) * 3.6
+    hud.speedKmh = vlen(mine.vel) * 3.6 * SPEEDO_EXAGGERATION
     hud.charge = mine.charge
     hud.flags = mine.flags
     hud.lap = mine.lap
