@@ -183,7 +183,7 @@ export type Standing = {
   finished: boolean
 }
 
-export type PlayerInfo = { id: number; name: string; ready: boolean; bot: boolean }
+export type PlayerInfo = { id: number; name: string; ready: boolean; bot: boolean; spectator: boolean }
 
 // --- Events -----------------------------------------------------------------
 
@@ -213,8 +213,10 @@ export type ClientMessage =
   | { t: 'respawn' }
   /** Start the countdown now instead of waiting for the lobby timer. */
   | { t: 'start' }
-  /** Abandon the current race and send everyone back to the lobby. */
+  /** Step out of the current race. The race carries on without you. */
   | { t: 'leave-race' }
+  /** Watch instead of drive, or ask for a grid slot back. */
+  | { t: 'spectate'; on: boolean }
   /** Solo locks the room to this player plus bots; multiplayer opens it up. */
   | { t: 'mode'; mode: RaceMode }
   /** Number of bots the room should field, 0..7. */

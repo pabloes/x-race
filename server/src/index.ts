@@ -112,7 +112,10 @@ async function main(): Promise<void> {
           room.onStartRequest()
           break
         case 'leave-race':
-          room.onLeaveRace(now())
+          room.onLeaveRace(playerId, now())
+          break
+        case 'spectate':
+          room.onSpectate(playerId, Boolean(message.on), now())
           break
         case 'mode':
           room.onMode(message.mode)

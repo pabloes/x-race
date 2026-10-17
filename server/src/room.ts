@@ -70,6 +70,12 @@ class Player implements Racer {
   ack = -1
   starveTicks = 0
   ready = false
+  /**
+   * Watching rather than driving. A spectator keeps its connection, its snapshots and its
+   * standings — it is in the room, just not on the grid — and its car is parked out of
+   * the world until it asks to race again.
+   */
+  spectator = false
 
   constructor(
     readonly id: number,
@@ -114,7 +120,7 @@ class Player implements Racer {
   }
 
   info(): PlayerInfo {
-    return { id: this.id, name: this.name, ready: this.ready, bot: false }
+    return { id: this.id, name: this.name, ready: this.ready, bot: false, spectator: this.spectator }
   }
 }
 
@@ -152,13 +158,16 @@ export class Room {
     return this.world.engineName
   }
 
+  /** Everyone actually on the grid: spectators are in the room but not in the race. */
   private *racers(): Generator<Racer> {
-    for (const p of this.players.values()) yield p
+    for (const p of this.players.values()) if (!p.spectator) yield p
     for (const b of this.bots.values()) yield b
   }
 
   private racerCount(): number {
-    return this.players.size + this.bots.size
+    let count = this.bots.size
+    for (const p of this.players.values()) if (!p.spectator) count++
+    return count
   }
 
   // --- Membership ----------------------------------------------------------
@@ -229,15 +238,51 @@ export class Room {
     if (this.phase === 'lobby') this.startRequested = true
   }
 
-  /** LEAVE RACE: abandon the current race and put everyone back on the grid. */
-  onLeaveRace(nowMs: number): void {
-    if (this.phase === 'lobby') return
-    this.phase = 'lobby'
-    this.phaseEndsMs = 0
-    this.startRequested = false
-    this.resetGrid(nowMs)
-    for (const p of this.players.values()) p.ready = false
+  /**
+   * LEAVE RACE: this player steps out, the race carries on.
+   *
+   * It used to put the *room* back in the lobby, which meant one person leaving ended
+   * everyone else's race. A player who leaves becomes a spectator; the race ends on its
+   * own terms, and only when the grid is empty does the room fall back to the lobby.
+   */
+  onLeaveRace(id: number, nowMs: number): void {
+    this.setSpectator(id, true, nowMs)
+  }
+
+  /**
+   * Spectate or race.
+   *
+   * Asking to race mid-race does not drop a car onto a moving circuit: the flag is set
+   * and the grid slot arrives with the next lobby, which is where everyone else's does.
+   */
+  onSpectate(id: number, spectate: boolean, nowMs: number): void {
+    this.setSpectator(id, spectate, nowMs)
+  }
+
+  private setSpectator(id: number, spectate: boolean, nowMs: number): void {
+    const player = this.players.get(id)
+    if (!player || player.spectator === spectate) return
+    player.spectator = spectate
+    player.ready = false
     this.playersDirty = true
+    this.standingsDirty = true
+    if (spectate) {
+      // Out of the world rather than left on the circuit, and with gravity off so it is
+      // not falling for the rest of the race.
+      player.car.vehicle.reset({ x: -200, y: -60, z: -200 }, 0)
+      player.car.vehicle.setGravityScale(0)
+      this.events.push({ t: 'leave', id })
+      // Nobody left to race: end it rather than run a countdown for an empty grid.
+      if (this.racerCount() === 0 && this.phase !== 'lobby') {
+        this.phase = 'lobby'
+        this.phaseEndsMs = 0
+        this.startRequested = false
+      }
+    } else {
+      player.car.vehicle.setGravityScale(1)
+      this.events.push({ t: 'join', id, name: player.name })
+      if (this.phase === 'lobby') this.resetGrid(nowMs)
+    }
   }
 
   onMode(mode: RaceMode): void {
@@ -375,7 +420,8 @@ export class Room {
         // Solo waits for the START button. Multiplayer also auto-starts once everyone is
         // ready or the lobby timer runs out, so a room of strangers still gets going.
         if (this.mode === 'multiplayer') {
-          const everyoneReady = [...this.players.values()].every((p) => p.ready)
+          const racing = [...this.players.values()].filter((p) => !p.spectator)
+          const everyoneReady = racing.length > 0 && racing.every((p) => p.ready)
           if (this.phaseEndsMs === 0) this.phaseEndsMs = nowMs + RACE.lobbyMs
           if (everyoneReady || nowMs >= this.phaseEndsMs) this.beginCountdown(nowMs)
         } else {
@@ -477,7 +523,7 @@ export class Room {
   private playerInfos(): PlayerInfo[] {
     const out: PlayerInfo[] = []
     for (const p of this.players.values()) out.push(p.info())
-    for (const b of this.bots.values()) out.push({ id: b.id, name: b.name, ready: true, bot: true })
+    for (const b of this.bots.values()) out.push({ id: b.id, name: b.name, ready: true, bot: true, spectator: false })
     return out
   }
 

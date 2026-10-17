@@ -38,6 +38,8 @@ const connection = new Connection(PLAYER_NAME, {
   onEvents: handleEvents,
   onPlayers: (list) => {
     players = list
+    const me = list.find((p) => p.id === connection.playerId)
+    hud.spectator = me?.spectator === true
   },
   onStandings: (list) => {
     hud.standings = list
@@ -203,6 +205,7 @@ export function main(): void {
   menu.setLaps = (laps) => connection.setLaps(laps)
   menu.start = () => connection.startRace()
   menu.leaveRace = () => connection.leaveRace()
+  menu.setSpectator = (on) => connection.spectate(on)
 
   // The realm has to be asked before the first socket is opened, so the connection starts
   // one turn of the event loop later than everything else. The HUD already says

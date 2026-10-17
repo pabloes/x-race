@@ -15,6 +15,7 @@
  */
 
 import ReactEcs, { Label, ReactEcsRenderer, UiEntity } from '@dcl/sdk/react-ecs'
+import { engine, UiCanvasInformation } from '@dcl/sdk/ecs'
 import { Color4 } from '@dcl/sdk/math'
 import { CHARGE, RACE } from '../../shared/constants'
 import { TRACK } from '../../shared/track'
@@ -30,7 +31,23 @@ export const menu = {
   setBots: (_count: number) => {},
   setLaps: (_laps: number) => {},
   start: () => {},
-  leaveRace: () => {}
+  leaveRace: () => {},
+  setSpectator: (_on: boolean) => {}
+}
+
+/**
+ * How much to multiply the menu's sizes by.
+ *
+ * The UI is laid out in pixels, which on a 4K screen is a postage stamp and on a small
+ * window is a wall. Everything in the menu is written at a 1280x720 design size and
+ * multiplied by this, so the panel keeps its proportions and grows with whichever of the
+ * two dimensions is tighter. Clamped so it never becomes unreadable or absurd.
+ */
+function uiScale(): number {
+  const canvas = UiCanvasInformation.getOrNull(engine.RootEntity)
+  if (!canvas) return 1
+  const fit = Math.min(canvas.width / 1280, canvas.height / 720)
+  return Math.max(0.65, Math.min(fit, 2.2))
 }
 
 export type HudState = {
@@ -76,6 +93,8 @@ export type HudState = {
   mode: RaceMode
   bots: number
   autoStart: boolean
+  /** Watching instead of driving. */
+  spectator: boolean
 }
 
 export const hud: HudState = {
@@ -110,7 +129,8 @@ export const hud: HudState = {
   bigMessage: '',
   mode: 'solo',
   bots: 0,
-  autoStart: false
+  autoStart: false,
+  spectator: false
 }
 
 const PANEL = Color4.create(0, 0, 0, 0.55)
@@ -136,18 +156,20 @@ function chargeColour(): Color4 {
 /** A small clickable chip. Everything in the top bar is built from these. */
 function Chip(props: {
   label: string
+  scale: number
   active?: boolean
   wide?: boolean
   accent?: Color4
   onClick: () => void
 }) {
   const bg = props.active ? (props.accent ?? ACCENT) : Color4.create(1, 1, 1, 0.12)
+  const k = props.scale
   return (
     <UiEntity
       uiTransform={{
-        width: props.wide === true ? 92 : 46,
-        height: 26,
-        margin: { left: 3, top: 2, bottom: 2 },
+        width: (props.wide === true ? 104 : 52) * k,
+        height: 32 * k,
+        margin: { left: 4 * k, right: 4 * k, top: 4 * k, bottom: 4 * k },
         justifyContent: 'center',
         alignItems: 'center'
       }}
@@ -156,7 +178,7 @@ function Chip(props: {
     >
       <Label
         value={props.label}
-        fontSize={13}
+        fontSize={14 * k}
         color={props.active === true ? Color4.Black() : Color4.White()}
         textAlign="middle-center"
       />
@@ -164,71 +186,151 @@ function Chip(props: {
   )
 }
 
-/** A fixed gap between chip groups. */
-function Gap() {
-  return <UiEntity uiTransform={{ width: 16, height: 1 }} />
-}
-
-/**
- * Top bar: pick the race, then start it. Mirrors the server's room settings rather than
- * holding its own, so two players looking at the same room see the same thing. It is
- * centred and wraps, so it never reaches the corners the explorer draws in and never
- * overflows a narrow window.
- */
-function TopBar() {
-  const inLobby = hud.phase === 'lobby'
-  const racing = hud.phase === 'racing' || hud.phase === 'countdown'
+/** One labelled row of the menu: a caption on the left, its controls on the right. */
+function Row(props: { label: string; scale: number; children?: unknown }) {
+  const k = props.scale
   return (
     <UiEntity
       uiTransform={{
         width: '100%',
+        height: 'auto',
         flexDirection: 'row',
+        alignItems: 'center',
         justifyContent: 'center',
-        margin: { top: 10 }
+        margin: { top: 2 * k, bottom: 2 * k }
+      }}
+    >
+      <UiEntity uiTransform={{ width: 86 * k, justifyContent: 'flex-end' }}>
+        <Label value={props.label} fontSize={13 * k} color={Color4.Gray()} textAlign="middle-right" />
+      </UiEntity>
+      <UiEntity uiTransform={{ width: 16 * k, height: 1 }} />
+      {props.children}
+    </UiEntity>
+  )
+}
+
+/**
+ * The menu, in the middle of the screen.
+ *
+ * It is the thing you look at between races, so it sits where you are already looking
+ * rather than along the top edge, and it is sized from the canvas (see `uiScale`) so it
+ * keeps its proportions on a phone-sized window and on a 4K monitor.
+ *
+ * It mirrors the server's room settings rather than holding its own, so two players
+ * looking at the same room see the same thing, and it is only drawn when there is a
+ * decision to make: between races, or while spectating one.
+ */
+function Menu() {
+  const k = uiScale()
+  const inLobby = hud.phase === 'lobby'
+  if (!inLobby && !hud.spectator) return null
+  return (
+    <UiEntity
+      uiTransform={{
+        positionType: 'absolute',
+        width: '100%',
+        height: '100%',
+        justifyContent: 'center',
+        alignItems: 'center'
       }}
     >
       <UiEntity
         uiTransform={{
-          maxWidth: '74%',
+          width: 420 * k,
           height: 'auto',
-          flexDirection: 'row',
-          flexWrap: 'wrap',
+          flexDirection: 'column',
           alignItems: 'center',
-          alignContent: 'center',
-          justifyContent: 'center',
-          padding: { left: 12, right: 12, top: 5, bottom: 5 }
+          padding: { left: 18 * k, right: 18 * k, top: 14 * k, bottom: 16 * k }
         }}
         uiBackground={{ color: BAR }}
       >
-        <Label value="ELON ROADSTER RACE" fontSize={16} color={ACCENT} />
+        <Label value="ELON ROADSTER RACE" fontSize={22 * k} color={ACCENT} />
+        <Label
+          value={
+            hud.spectator
+              ? 'SPECTATING'
+              : hud.autoStart
+                ? 'WAITING FOR DRIVERS'
+                : 'SET UP THE RACE'
+          }
+          fontSize={12 * k}
+          color={Color4.Gray()}
+        />
+        <UiEntity uiTransform={{ width: 1, height: 10 * k }} />
 
-        <Gap />
-        <Label value="MODE" fontSize={11} color={Color4.Gray()} />
-        <Chip label="SOLO" active={hud.mode === 'solo'} onClick={() => menu.setMode('solo')} />
-        <Chip label="MULTI" active={hud.mode === 'multiplayer'} onClick={() => menu.setMode('multiplayer')} />
+        <Row label="MODE" scale={k}>
+          <Chip label="SOLO" scale={k} active={hud.mode === 'solo'} onClick={() => menu.setMode('solo')} />
+          <Chip
+            label="MULTI"
+            scale={k}
+            active={hud.mode === 'multiplayer'}
+            onClick={() => menu.setMode('multiplayer')}
+          />
+        </Row>
 
-        <Gap />
-        <Label value="BOTS" fontSize={11} color={Color4.Gray()} />
-        <Chip label="-" onClick={() => menu.setBots(hud.bots - 1)} />
-        <UiEntity uiTransform={{ width: 26, justifyContent: 'center' }}>
-          <Label value={String(hud.bots)} fontSize={15} color={Color4.White()} textAlign="middle-center" />
+        <Row label="BOTS" scale={k}>
+          <Chip label="-" scale={k} onClick={() => menu.setBots(hud.bots - 1)} />
+          <UiEntity uiTransform={{ width: 32 * k, justifyContent: 'center' }}>
+            <Label value={String(hud.bots)} fontSize={17 * k} color={Color4.White()} textAlign="middle-center" />
+          </UiEntity>
+          <Chip label="+" scale={k} onClick={() => menu.setBots(hud.bots + 1)} />
+        </Row>
+
+        <Row label="LAPS" scale={k}>
+          <Chip label="1" scale={k} active={hud.laps === 1} onClick={() => menu.setLaps(1)} />
+          <Chip label="3" scale={k} active={hud.laps === 3} onClick={() => menu.setLaps(3)} />
+          <Chip label="5" scale={k} active={hud.laps === 5} onClick={() => menu.setLaps(5)} />
+        </Row>
+
+        <UiEntity uiTransform={{ width: 1, height: 8 * k }} />
+        <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', justifyContent: 'center' }}>
+          {hud.spectator ? (
+            <Chip
+              label="RACE"
+              scale={k}
+              wide
+              active
+              accent={Color4.create(0.3, 0.9, 0.4, 1)}
+              onClick={() => menu.setSpectator(false)}
+            />
+          ) : (
+            // Wrapped rather than a fragment: the scene's JSX factory builds entities, and
+            // an entity is what a row of chips has to be.
+            <UiEntity uiTransform={{ width: 'auto', flexDirection: 'row' }}>
+              <Chip
+                label="START RACE"
+                scale={k}
+                wide
+                active={inLobby}
+                accent={Color4.create(0.3, 0.9, 0.4, 1)}
+                onClick={() => menu.start()}
+              />
+              <Chip label="SPECTATE" scale={k} wide onClick={() => menu.setSpectator(true)} />
+            </UiEntity>
+          )}
         </UiEntity>
-        <Chip label="+" onClick={() => menu.setBots(hud.bots + 1)} />
-
-        <Gap />
-        <Label value="LAPS" fontSize={11} color={Color4.Gray()} />
-        <Chip label="1" active={hud.laps === 1} onClick={() => menu.setLaps(1)} />
-        <Chip label="3" active={hud.laps === 3} onClick={() => menu.setLaps(3)} />
-        <Chip label="5" active={hud.laps === 5} onClick={() => menu.setLaps(5)} />
-
-        <Gap />
-        {inLobby ? (
-          <Chip label="START RACE" wide active accent={Color4.create(0.3, 0.9, 0.4, 1)} onClick={() => menu.start()} />
-        ) : null}
-        {racing || hud.phase === 'finished' ? (
-          <Chip label="LEAVE" wide accent={WARN} active onClick={() => menu.leaveRace()} />
+        {hud.spectator ? (
+          <Label
+            value="walk around with your avatar while the race runs"
+            fontSize={11 * k}
+            color={Color4.Gray()}
+          />
         ) : null}
       </UiEntity>
+    </UiEntity>
+  )
+}
+
+/**
+ * While a race is on, the only thing the menu still owes you is a way out. One chip at
+ * the top, so the middle of the screen belongs to the circuit.
+ */
+function RaceBar() {
+  const k = uiScale()
+  if (hud.spectator || hud.phase === 'lobby') return null
+  return (
+    <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', justifyContent: 'center', margin: { top: 10 } }}>
+      <Chip label="LEAVE RACE" scale={k} wide accent={WARN} active onClick={() => menu.leaveRace()} />
     </UiEntity>
   )
 }
@@ -466,7 +568,7 @@ function Hud() {
         pointerFilter: 'none'
       }}
     >
-      <TopBar />
+      <RaceBar />
 
       {/* Middle band: panels left, messages centre, and a gutter on the right that is
           deliberately empty — the explorer's minimap lives there. */}
@@ -490,6 +592,8 @@ function Hud() {
           <Standings />
         </UiEntity>
       </UiEntity>
+
+      <Menu />
 
       {/* Bottom band: speed centred, status right, bottom-left left to the chat. */}
       <UiEntity

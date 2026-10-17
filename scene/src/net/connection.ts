@@ -145,6 +145,11 @@ export class Connection {
     this.send({ t: 'leave-race' })
   }
 
+  /** Watch instead of drive, or ask for a grid slot back. */
+  spectate(on: boolean): void {
+    this.send({ t: 'spectate', on })
+  }
+
   setMode(mode: RaceMode): void {
     this.send({ t: 'mode', mode })
   }
