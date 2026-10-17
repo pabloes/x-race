@@ -11,8 +11,9 @@ import { createServer } from 'node:http'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { NET, TICK_MS } from '../../shared/constants'
 import { parseClientMessage, type ServerMessage } from '../../shared/protocol'
-import { createWorld, initPhysics } from './physics'
-import { Room, type Connection } from './room'
+import { engineName, initPhysics } from './physics'
+import type { Connection } from './room'
+import { Rooms } from './rooms'
 
 const PORT = Number(process.env.PORT ?? NET.defaultPort)
 /** Never run more than this many ticks in one catch-up pass. */
@@ -20,8 +21,8 @@ const MAX_CATCHUP_TICKS = 8
 
 async function main(): Promise<void> {
   await initPhysics()
-  const world = createWorld()
-  const room = new Room(world)
+
+  const rooms = new Rooms()
   const started = performance.now()
   const now = () => performance.now() - started
 
@@ -34,9 +35,10 @@ async function main(): Promise<void> {
       res.end(
         JSON.stringify({
           ok: true,
-          engine: world.engineName,
-          players: room.playerCount,
-          tick: room.currentTick,
+          engine: engineName(),
+          players: rooms.playerCount,
+          rooms: rooms.roomCount,
+          tick: rooms.sharedTick,
           uptimeMs: Math.round(now())
         })
       )
@@ -48,7 +50,7 @@ async function main(): Promise<void> {
 
   const wss = new WebSocketServer({ server: httpServer })
   httpServer.listen(PORT, () => {
-    console.log(`[server] ${world.engineName} physics on port ${PORT} — websocket + GET /health`)
+    console.log(`[server] ${engineName()} physics on port ${PORT} — websocket + GET /health`)
   })
 
   wss.on('connection', (socket: WebSocket) => {
@@ -79,17 +81,21 @@ async function main(): Promise<void> {
           return
         }
         const name = String(message.name ?? 'driver').slice(0, 20) || 'driver'
-        const player = room.join(name, connection, now())
-        if (!player) {
+        const seat = rooms.join(name, connection, now())
+        if (!seat) {
           connection.close('room is full')
           return
         }
-        playerId = player.id
-        console.log(`[server] ${name} joined as #${player.id} (${room.playerCount} in room)`)
+        playerId = seat.playerId
+        console.log(`[server] ${name} joined as #${seat.playerId} (${rooms.playerCount} across ${rooms.roomCount} room(s))`)
         return
       }
 
       if (playerId === null) return
+      const seat = rooms.seatOf(connection)
+      if (!seat) return
+      const room = seat.room
+      playerId = seat.playerId
       switch (message.t) {
         case 'in':
           if (process.env.LOG_INPUT === '1' && inputPackets++ % 30 === 0) {
@@ -117,9 +123,12 @@ async function main(): Promise<void> {
         case 'spectate':
           room.onSpectate(playerId, Boolean(message.on), now())
           break
-        case 'mode':
-          room.onMode(message.mode)
+        case 'mode': {
+          // A move between rooms, not a setting: solo is a room of your own.
+          const moved = rooms.setMode(connection, message.mode, now())
+          if (moved) playerId = moved.playerId
           break
+        }
         case 'bots':
           room.onBotCount(Number(message.count))
           break
@@ -145,8 +154,8 @@ async function main(): Promise<void> {
       alive = false
       clearInterval(heartbeat)
       if (playerId !== null) {
-        room.leave(playerId)
-        console.log(`[server] #${playerId} left (${room.playerCount} in room)`)
+        rooms.leave(connection)
+        console.log(`[server] #${playerId} left (${rooms.playerCount} across ${rooms.roomCount} room(s))`)
       }
     }
     socket.on('close', drop)
@@ -166,7 +175,7 @@ async function main(): Promise<void> {
     }
     for (let i = 0; i < toRun; i++) {
       ticksRun++
-      room.step(now())
+      rooms.step(now(), ticksRun)
     }
   }
   setInterval(loop, Math.max(1, Math.floor(TICK_MS / 2)))

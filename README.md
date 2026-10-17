@@ -200,6 +200,24 @@ desplazamiento lateral para no cruzarse consigo mismo, y entonces el acceso ya n
 la recta. Está documentado en `shared/track.ts` por si quieres retomarlo; el momento «boca
 abajo» lo da el techo invertido, que además es el truco que pediste.
 
+## Salas
+
+Hay **una sala multijugador**, compartida por todos: es la carrera que se puede mirar y lo
+único que está sincronizado entre jugadores. Quien elige SOLO se lleva **una sala propia**,
+con su mundo de físicas aparte, así que sus bots y sus reinicios no son asunto de nadie
+más, y empezar una carrera en solitario nunca espera ni interrumpe a la sala compartida.
+
+Cambiar de modo es **mudarse de sala**, no un ajuste: la conexión sale de una y entra en la
+otra, y recibe un `welcome` nuevo con otro id. Antes el modo era una propiedad de la única
+sala que había, de forma que un jugador se lo cambiaba a todos.
+
+Por eso el número de tick lo reparte el bucle en vez de contarlo cada sala: el cliente
+estampa sus entradas contra el *reloj* (`relojDelServidor / TICK_MS`), así que una sala
+recién creada que empezara a contar en cero vería todas esas entradas decenas de miles de
+ticks en el futuro y las tiraría.
+
+`GET /health` informa de `rooms` además de `players`.
+
 ## Motor de físicas
 
 Rapier (`@dimforge/rapier3d-compat`) con su `DynamicRayCastVehicleController`. La costura con

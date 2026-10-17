@@ -29,3 +29,8 @@ export async function initPhysics(): Promise<void> {
 export function createWorld(): PhysicsWorld {
   return selectedEngine() === 'cannon' ? new CannonWorld() : new RapierWorld()
 }
+
+/** The engine's name without building a world for it: every room builds its own. */
+export function engineName(): string {
+  return selectedEngine() === 'cannon' ? 'cannon-es' : 'rapier3d'
+}

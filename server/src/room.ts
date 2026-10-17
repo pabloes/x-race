@@ -349,9 +349,16 @@ export class Room {
 
   // --- Tick ----------------------------------------------------------------
 
-  /** Advances the simulation by exactly one fixed tick. */
-  step(nowMs: number): void {
-    this.tick++
+  /**
+   * Advances the simulation by exactly one fixed tick.
+   *
+   * The tick number comes from the loop rather than from a counter of its own, because
+   * there is more than one room and the client stamps its inputs against the *clock*:
+   * `serverNow / TICK_MS`. A room that started counting at zero when it was created would
+   * see every input as tens of thousands of ticks in the future and throw them all away.
+   */
+  step(nowMs: number, tick: number): void {
+    this.tick = tick
     this.updatePhase(nowMs)
     const racing = this.phase === 'racing'
 
