@@ -84,6 +84,17 @@ estados conocidos** en vez de adivinar. Si una instantánea se pierde, extrapola
 irse a un sitio inventado. Los relojes se alinean con ping/pong: el servidor devuelve la
 marca de tiempo del propio cliente, así que el RTT no depende de confiar en el reloj ajeno.
 
+## La miniatura
+
+`display.navmapThumbnail` apunta a `images/key-art.png`, el cartel del juego, a 1920 x 1080
+como pide Decentraland. Places recorta el cuadrado central de 1080, y ahí caben enteros el
+título y el coche; lo que se pierde por los lados es el logo de la esquina y parte del
+fondo.
+
+`scene/tools/make-thumbnail.py` sigue en el repo y genera una alternativa isométrica a
+partir del trazado real (`images/elon-roadster-race.png`), útil si alguna vez interesa que
+la miniatura muestre el circuito que se conduce en lugar de un cartel.
+
 ## El coche
 
 El modelo es **"Tesla Roadster"** de [Y M C](https://sketchfab.com/YMCCars), publicado en

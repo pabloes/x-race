@@ -4,7 +4,7 @@
   "display": {
     "title": "ELON ROADSTER RACE",
     "description": "Server-authoritative stunt racing on a 1.5 km GP circuit: 14 corners, a launch ramp, cold-gas thrusters and an inverted ceiling run. Race bots solo or line up against other drivers.",
-    "navmapThumbnail": "images/elon-roadster-race.png",
+    "navmapThumbnail": "images/key-art.png",
     "favicon": "favicon_asset"
   },
   "worldConfiguration": {
