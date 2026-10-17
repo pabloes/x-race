@@ -435,8 +435,14 @@ export class Room {
         // Solo waits for the START button. Multiplayer also auto-starts once everyone is
         // ready or the lobby timer runs out, so a room of strangers still gets going.
         if (this.mode === 'multiplayer') {
+          // The lobby only counts down once there is actually a field to race. Below that
+          // it waits, and START is the way out for whoever does not want to.
           const racing = [...this.players.values()].filter((p) => !p.spectator)
-          const everyoneReady = racing.length > 0 && racing.every((p) => p.ready)
+          if (racing.length < RACE.minPlayers) {
+            this.phaseEndsMs = 0
+            return
+          }
+          const everyoneReady = racing.every((p) => p.ready)
           if (this.phaseEndsMs === 0) this.phaseEndsMs = nowMs + RACE.lobbyMs
           if (everyoneReady || nowMs >= this.phaseEndsMs) this.beginCountdown(nowMs)
         } else {

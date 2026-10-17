@@ -325,8 +325,10 @@ function Menu() {
             hud.spectator
               ? 'SPECTATING'
               : hud.autoStart
-                ? 'WAITING FOR DRIVERS'
-                : 'SET UP THE RACE'
+                ? `STARTING IN ${Math.max(0, Math.ceil(hud.phaseMs / 1000))}`
+                : hud.mode === 'multiplayer'
+                  ? 'WAITING FOR DRIVERS'
+                  : 'SET UP THE RACE'
           }
           fontSize={12 * k}
           color={Color4.Gray()}
