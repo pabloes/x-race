@@ -93,9 +93,15 @@ export const CAR = {
   comOffset: { x: 0, y: -0.25, z: 0 },
   /**
    * Principal angular inertia. Roll (z) is kept low-ish for responsive barrel rolls while
-   * pitch/yaw are raised above the equivalent box values for stability under downforce.
+   * pitch (x) stays high for stability under downforce.
+   *
+   * Yaw (y) came down from 2200 because it is felt directly: it is the resistance between
+   * pressing a key and the car starting to come round. Measured, 2200 took 83 ms to reach
+   * ninety per cent of the car's steady rate of turn and 1200 takes 50 ms, with the same
+   * steady rate at the end of it. 1500 keeps most of that (50 ms) while leaving the car
+   * settled enough for the bots, whose steering is two keys and no counter-steer.
    */
-  inertia: { x: 1800, y: 2200, z: 900 },
+  inertia: { x: 1800, y: 1500, z: 900 },
 
   wheelRadius: 0.35,
   /** Wheel anchor points in chassis space. Order: FL, FR, RL, RR. */
@@ -240,8 +246,8 @@ export const CAR = {
    */
   yawRate: 1.8,
   yawRateHandbrake: 1.45,
-  yawGain: 14000,
-  yawTorqueMax: 16000,
+  yawGain: 20000,
+  yawTorqueMax: 24000,
   /** Torque used to steer/rotate the car mid-air (arcade air control). */
   airControlTorque: 6500,
 
