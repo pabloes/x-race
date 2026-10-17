@@ -93,9 +93,15 @@ export const CAR = {
   comOffset: { x: 0, y: -0.25, z: 0 },
   /**
    * Principal angular inertia. Roll (z) is kept low-ish for responsive barrel rolls while
-   * pitch/yaw are raised above the equivalent box values for stability under downforce.
+   * pitch (x) stays high for stability under downforce.
+   *
+   * Yaw (y) came down from 2200 because it is felt directly: it is the resistance between
+   * pressing a key and the car starting to come round. Measured, 2200 took 83 ms to reach
+   * ninety per cent of the car's steady rate of turn and 1200 takes 50 ms, with the same
+   * steady rate at the end of it. 1500 keeps most of that (50 ms) while leaving the car
+   * settled enough for the bots, whose steering is two keys and no counter-steer.
    */
-  inertia: { x: 1800, y: 2200, z: 900 },
+  inertia: { x: 1800, y: 1500, z: 900 },
 
   wheelRadius: 0.35,
   /** Wheel anchor points in chassis space. Order: FL, FR, RL, RR. */
@@ -172,8 +178,16 @@ export const CAR = {
    */
   maxSteerLowSpeed: 0.5,
   maxSteerHighSpeed: 0.2,
-  /** Steering follows the input through a first-order filter at this rate (1/s). */
-  steerRate: 9,
+  /**
+   * Steering follows the input through a first-order filter at this rate (1/s).
+   *
+   * Measured, not guessed: at 9 the car took 83 ms to reach half its steady rate of turn
+   * and 133 ms to reach ninety per cent of it, *before* a single millisecond of network.
+   * That is most of what "it turns late" was. At 24 the same figures are 33 ms and 83 ms,
+   * and the steady rate is unchanged — the filter was costing response, not holding the
+   * car down. Past 24 nothing improves: the limit becomes the chassis' own inertia.
+   */
+  steerRate: 24,
 
   /**
    * Aerodynamic downforce along the chassis' local -up, applied only while a wheel is
@@ -232,8 +246,8 @@ export const CAR = {
    */
   yawRate: 1.8,
   yawRateHandbrake: 1.45,
-  yawGain: 9000,
-  yawTorqueMax: 16000,
+  yawGain: 20000,
+  yawTorqueMax: 24000,
   /** Torque used to steer/rotate the car mid-air (arcade air control). */
   airControlTorque: 6500,
 
@@ -286,11 +300,15 @@ export const CAR = {
   selfRightDamping: 2600,
 
   /**
-   * Cold-gas thrusters, on the space bar: a straight push along world up, strong enough
-   * to beat gravity and lift the car (2.2 g net). Named after the SpaceX package the real
-   * Roadster is supposed to carry.
+   * Cold-gas thrusters, on the space bar: a straight push along world up. Named after the
+   * SpaceX package the real Roadster is supposed to carry.
+   *
+   * Gravity is switched off for the chassis while they fire, so this force is the whole
+   * acceleration rather than a margin over the car's weight: 42000 N meant 35 m/s² and the
+   * car went up like a firework. 13000 is a brisk 11 m/s², which lifts it off the road
+   * without losing sight of it.
    */
-  thrusterForce: 42000,
+  thrusterForce: 13000,
   /** Sideways/forward bleed while thrusting, so hovering does not feel frictionless. */
   thrusterDrag: 0.3,
   /**
@@ -303,16 +321,28 @@ export const CAR = {
 // --- Charge bar (battery) ---
 
 export const CHARGE = {
-  /** Bar is 0..1. */
-  initial: 0.35,
+  /** Bar is 0..1. You start with almost nothing and earn the rest by driving. */
+  initial: 0.1,
   /** Regen per second while coasting or braking (regenerative braking). */
-  regenPerSecond: 0.06,
+  regenPerSecond: 0.02,
   /** Regen per second while braking hard. */
-  regenBrakingPerSecond: 0.22,
+  regenBrakingPerSecond: 0.06,
+  /**
+   * Regen per second at full drift angle, scaled down to nothing as the car straightens.
+   *
+   * This is where the charge actually comes from. Coasting pays a trickle, so a lap driven
+   * straight and tidy never fills the bar: the thrusters and the boost are paid for with
+   * the thing that costs time, which is sliding the car about and throwing it off ramps.
+   */
+  driftRegenPerSecond: 0.45,
   /** Drain per second while boosting. */
   drainPerSecond: 0.42,
-  /** Drain per second while the thrusters are firing. Deliberately costlier than boost. */
-  thrusterDrainPerSecond: 0.55,
+  /**
+   * Drain per second while the thrusters are firing. Costlier than boost, but not so
+   * costly that the 10% you start with is gone in a twentieth of a second, which is what
+   * 0.55 meant once the bar started nearly empty: the thrusters simply did not fire.
+   */
+  thrusterDrainPerSecond: 0.35,
   /** Minimum charge needed to start a boost (prevents stuttering at ~0). */
   boostFloor: 0.08,
   /** Reward for a clean landing after an airborne trick. */

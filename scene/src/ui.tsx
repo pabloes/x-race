@@ -46,6 +46,8 @@ export type HudState = {
   trackMismatch: boolean
   /** Host of the race server this run picked, so it is never a guess which one you are on. */
   serverHost: string
+  /** Measurement line from the cannon spike; empty when it is not running. */
+  spike: string
   /** Every car on track, for the minimap. */
   blips: { id: number; x: number; z: number; mine: boolean }[]
   /** Where the next checkpoint is, so the map answers "where do I go now". */
@@ -85,6 +87,7 @@ export const hud: HudState = {
   extrapolationMs: 0,
   trackMismatch: false,
   serverHost: '',
+  spike: '',
   blips: [],
   nextCheckpoint: null,
   phase: 'lobby',
@@ -115,8 +118,6 @@ const BAR = Color4.create(0, 0, 0, 0.72)
 const ACCENT = Color4.create(0.1, 0.85, 1, 1)
 const WARN = Color4.create(1, 0.55, 0.1, 1)
 
-/** Gap above the left column, clearing the explorer's own top-left controls. */
-const LEFT_COLUMN_TOP = 26
 /** Side of the HUD track map, in pixels. */
 const MAP_SIZE = 168
 /**
@@ -321,15 +322,12 @@ function Minimap() {
   )
 }
 
-/**
- * Standings. They live on the left, under nothing: the race panel and the map moved to
- * the right, below the explorer's own minimap.
- */
+/** Standings, under the race panel and the map in the right-hand column. */
 function Standings() {
   if (hud.standings.length === 0) return null
   return (
     <UiEntity
-      uiTransform={{ flexDirection: 'column', padding: 8, minWidth: 180, margin: { top: 8 } }}
+      uiTransform={{ flexDirection: 'column', padding: 8, minWidth: 190, margin: { top: 8 } }}
       uiBackground={{ color: PANEL }}
     >
       <Label value="STANDINGS" fontSize={13} color={ACCENT} />
@@ -434,6 +432,9 @@ function StatusLine() {
         color={hud.trackMismatch ? WARN : hud.connected ? Color4.create(0.5, 0.9, 0.5, 1) : WARN}
         textAlign="middle-right"
       />
+      {hud.spike !== '' ? (
+        <Label value={hud.spike} fontSize={12} color={Color4.create(1, 0.8, 0.3, 1)} textAlign="middle-right" />
+      ) : null}
       <Label
         value={hud.serverHost}
         fontSize={11}
@@ -470,26 +471,23 @@ function Hud() {
       {/* Middle band: panels left, messages centre, and a gutter on the right that is
           deliberately empty — the explorer's minimap lives there. */}
       <UiEntity uiTransform={{ width: '100%', flexGrow: 1, flexDirection: 'row', alignItems: 'flex-start' }}>
+        <Messages />
+        {/* Everything that is read rather than watched lives in one column on the right,
+            below the explorer's own minimap: lap and position, the track map beside them,
+            and the standings under both. */}
         <UiEntity
           uiTransform={{
             width: 'auto',
             flexDirection: 'column',
-            margin: { left: 14, top: LEFT_COLUMN_TOP }
-          }}
-        >
-          <Standings />
-        </UiEntity>
-        <Messages />
-        <UiEntity
-          uiTransform={{
-            width: 'auto',
-            flexDirection: 'row',
-            alignItems: 'flex-start',
+            alignItems: 'flex-end',
             margin: { right: 14, top: RIGHT_COLUMN_TOP }
           }}
         >
-          <Minimap />
-          <RacePanel />
+          <UiEntity uiTransform={{ width: 'auto', flexDirection: 'row', alignItems: 'flex-start' }}>
+            <Minimap />
+            <RacePanel />
+          </UiEntity>
+          <Standings />
         </UiEntity>
       </UiEntity>
 

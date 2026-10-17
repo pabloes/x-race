@@ -181,7 +181,14 @@ export class SnapshotBuffer {
     if (this.snapshots.length === 0) return out
     const target = this.renderTime(localNow)
     // Your own car is sampled much closer to the present: see LOCAL_INTERPOLATION_DELAY_MS.
-    const localTarget = localNow + this.clockOffset - LOCAL_INTERPOLATION_DELAY_MS
+    //
+    // And closer still on a short connection. The delay only has to cover the time until
+    // the next snapshot can plausibly arrive, which is half a round trip plus a little
+    // jitter; on a server running on the same machine that is a couple of milliseconds,
+    // and holding the full delay there is 20 ms of lag paid for nothing. The constant
+    // stays as the ceiling for a real connection.
+    const localDelay = Math.max(10, Math.min(this.rtt / 2 + 8, LOCAL_INTERPOLATION_DELAY_MS))
+    const localTarget = localNow + this.clockOffset - localDelay
     if (localCarId >= 0 && localTarget !== target) {
       const mine = this.sampleAt(localTarget, localCarId)
       if (mine) out.set(localCarId, mine)

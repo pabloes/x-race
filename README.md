@@ -32,7 +32,10 @@ open 'decentraland://realm=http%3A%2F%2Flocalhost%3A8000&position=15,3'
 pregunta a `getRealm()` si está en preview y elige `LOCAL_SERVER_URL` o
 `REMOTE_SERVER_URL`. En preview, el de localhost; publicada, el de CapRover. Solo hay que
 editar ese fichero cuando el servidor *remoto* cambie de dominio. La consola del explorador
-imprime cuál ha elegido: `[roadster] server wss://…`.
+imprime cuál ha elegido, y el HUD lo muestra en la esquina inferior derecha.
+
+Para **probar el servidor desplegado desde la preview** (la única forma de sentir la
+latencia real sin publicar), pon `PREVIEW_AGAINST_REMOTE = true` en ese mismo fichero.
 
 Controles:
 
@@ -80,6 +83,30 @@ estados conocidos** en vez de adivinar. Si una instantánea se pierde, extrapola
 última velocidad conocida, pero solo 250 ms; pasado eso el mundo se queda quieto en lugar de
 irse a un sitio inventado. Los relojes se alinean con ping/pong: el servidor devuelve la
 marca de tiempo del propio cliente, así que el RTT no depende de confiar en el reloj ajeno.
+
+## El coche
+
+El modelo es **"Tesla Roadster"** de [Y M C](https://sketchfab.com/YMCCars), publicado en
+[Sketchfab](https://sketchfab.com/3d-models/tesla-roadster-e918af22247d45859696187ce3756baf)
+bajo [CC-BY-4.0](http://creativecommons.org/licenses/by/4.0/). La licencia exige el crédito
+y permite el uso comercial.
+
+Tal como viene no se puede conducir, así que `scene/tools/import-car.py` lo prepara:
+
+- **Quita el decorado**: es una escena de Sketchfab y trae un plano de suelo de 12.8 m.
+- **Separa las ruedas**: vienen modeladas por ejes, con los dos lados en las mismas mallas.
+  Se cortan por el signo del centro de cada triángulo y cada mitad se recentra en su buje,
+  que es lo que permite que giren y se orienten con su propio transform. El eje de giro en
+  X sale del neumático y no de la caja englobante del conjunto, porque el disco de freno
+  tira del centro hacia dentro y la dirección pivotaría torcida.
+- **Escala y asienta**: el modelo mide 4.52 m y su suelo está en y = -0.64; el coche
+  simulado mide 4.4 m con el centro del chasis a 0.65 m del punto de contacto.
+- **Conserva `doubleSided`**: todos los materiales del original lo llevan, los paneles son
+  superficies abiertas, y perder esa bandera es lo que abría agujeros en la carrocería.
+- **Enciende las luces**: `Tail_Light` y `Front_Light_Glass` pasan a emisivos.
+
+Ocho libreas (el material `Body` recoloreado) porque un glTF lleva sus materiales dentro y
+la escena no puede sobreescribirlos.
 
 ## El circuito
 

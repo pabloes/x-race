@@ -24,6 +24,7 @@ import { attachTo, detach } from './camera'
 import { PLAYER_NAME, serverUrl } from './config'
 import { readInputBits, respawnPressed } from './input'
 import { Connection } from './net/connection'
+import { SPIKE_CANNON, startCannonSpike } from './spike-cannon'
 import { buildTrack } from './track-render'
 import { hud, menu, setupUi } from './ui'
 
@@ -190,6 +191,10 @@ function hudSystem(dt: number): void {
 
 export function main(): void {
   buildTrack()
+  // Measurement only, on the cannon-prediction branch: see spike-cannon.ts. Off unless
+  // it is being read, because a cannon world stepping in the scene thread is exactly the
+  // sort of thing that makes the car feel late while you are trying to judge the car.
+  if (SPIKE_CANNON) startCannonSpike()
   setupUi()
   // The top bar only ever asks; the room decides, and the next snapshot tells us what it
   // decided. Nothing here mutates the local settings optimistically.
