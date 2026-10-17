@@ -26,6 +26,12 @@ import { CAR, TICK_DT } from '../../shared/constants'
 import { TRACK } from '../../shared/track'
 import { hud } from './ui'
 
+/**
+ * Flip to true to take the measurement. It is off by default because the spike costs
+ * frames by construction, and a frame lost here is input latency everywhere else.
+ */
+export const SPIKE_CANNON = false
+
 /** Static geometry this far from the car is left out of the prediction world. */
 const NEARBY_RADIUS = 45
 /** Ticks replayed per rollback: about what 75 ms of ping costs at a 60 Hz tick. */
