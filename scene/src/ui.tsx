@@ -196,7 +196,7 @@ function Chip(props: {
   return (
     <UiEntity
       uiTransform={{
-        width: (props.wide === true ? 104 : 52) * k,
+        width: (props.wide === true ? 112 : 62) * k,
         height: 32 * k,
         margin: { left: 4 * k, right: 4 * k, top: 4 * k, bottom: 4 * k },
         justifyContent: 'center',
@@ -210,6 +210,10 @@ function Chip(props: {
         fontSize={14 * k}
         color={props.active === true ? Color4.Black() : Color4.White()}
         textAlign="middle-center"
+        // A chip's label is one word by definition. Left to wrap, the Bevy client broke
+        // MULTI into "MULT" and "I" as soon as the glyphs were a hair wider than the box,
+        // and a chip that changes height mid-row drags the whole menu with it.
+        textWrap="nowrap"
       />
     </UiEntity>
   )
