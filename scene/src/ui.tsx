@@ -20,6 +20,8 @@ import { Color4 } from '@dcl/sdk/math'
 import { CHARGE, RACE } from '../../shared/constants'
 import { TRACK } from '../../shared/track'
 import { CarFlag, formatTime, type RaceMode, type RacePhase, type Standing } from '../../shared/protocol'
+import { touch } from './input'
+import { isMobile } from './platform'
 
 /**
  * What the top bar can ask the server to do. `index.ts` fills these in; the UI never
@@ -102,7 +104,8 @@ export type HudState = {
   // --- room settings, mirrored from the server ---
   mode: RaceMode
   bots: number
-  autoStart: boolean
+  /** The join window is open: START is not available yet. */
+  joining: boolean
   /** Watching instead of driving. */
   spectator: boolean
   /** The menu is folded away into its button at the top of the screen. */
@@ -154,7 +157,7 @@ export const hud: HudState = {
   bigMessage: '',
   mode: 'solo',
   bots: 0,
-  autoStart: false,
+  joining: false,
   spectator: false,
   menuMinimised: false,
   wasSpectator: false,
@@ -324,10 +327,10 @@ function Menu() {
           value={
             hud.spectator
               ? 'SPECTATING'
-              : hud.autoStart
-                ? `STARTING IN ${Math.max(0, Math.ceil(hud.phaseMs / 1000))}`
+              : hud.joining
+                ? `DOORS OPEN · ${Math.max(0, Math.ceil(hud.phaseMs / 1000))}`
                 : hud.mode === 'multiplayer'
-                  ? 'WAITING FOR DRIVERS'
+                  ? 'ANYONE CAN START'
                   : 'SET UP THE RACE'
           }
           fontSize={12 * k}
@@ -378,10 +381,10 @@ function Menu() {
             // an entity is what a row of chips has to be.
             <UiEntity uiTransform={{ width: 'auto', flexDirection: 'row' }}>
               <Chip
-                label="START RACE"
+                label={hud.joining ? 'WAIT…' : 'START RACE'}
                 scale={k}
                 wide
-                active={inLobby}
+                active={inLobby && !hud.joining}
                 accent={Color4.create(0.3, 0.9, 0.4, 1)}
                 onClick={() => menu.start()}
               />
@@ -642,6 +645,16 @@ function SpeedPanel() {
   )
 }
 
+/**
+ * How much to scale the control hints by.
+ *
+ * Tied to the menu's scale but gentler: the hints are a line of text at the edge of the
+ * screen, and growing them as fast as the panel would turn them into a headline.
+ */
+function hintScale(): number {
+  return 1 + (menuMetrics().k - 1) * 0.6
+}
+
 /** Connection and controls, bottom-right so the explorer's chat keeps the bottom-left. */
 function StatusLine() {
   return (
@@ -675,8 +688,84 @@ function StatusLine() {
         color={hud.extrapolationMs > 60 || hud.fps < 30 ? WARN : Color4.Gray()}
         textAlign="middle-right"
       />
-      <Label value="WASD drive · WW boost · Space thrusters" fontSize={11} color={Color4.Gray()} textAlign="middle-right" />
-      <Label value="Shift handbrake · E roll · F respawn" fontSize={11} color={Color4.Gray()} textAlign="middle-right" />
+      {isMobile() ? null : (
+        <UiEntity uiTransform={{ width: 'auto', flexDirection: 'column', alignItems: 'flex-end' }}>
+          <Label
+            value="WASD drive · WW boost · Space thrusters"
+            fontSize={13 * hintScale()}
+            color={Color4.Gray()}
+            textAlign="middle-right"
+          />
+          <Label
+            value="Shift handbrake · E roll · F respawn"
+            fontSize={13 * hintScale()}
+            color={Color4.Gray()}
+            textAlign="middle-right"
+          />
+        </UiEntity>
+      )}
+    </UiEntity>
+  )
+}
+
+/**
+ * Driving controls for a touch explorer.
+ *
+ * Two jobs, and they are different. The throttle is a button of ours: there is no key to
+ * hold, so it feeds `touch.throttle`, and because that goes through the same path as the
+ * keyboard the double-tap-for-boost works with a thumb exactly as it does with W — which
+ * is why the button says so.
+ *
+ * The other three are *labels*. The mobile explorer already draws its own round buttons
+ * for jump and the two action keys; what it does not know is what they do in this scene,
+ * so these sit over them and say. Their positions are percentages of the screen because
+ * that is where those buttons are, and if the explorer ever moves them, these two numbers
+ * are what needs changing.
+ */
+function MobileControls() {
+  if (!isMobile()) return null
+  const k = menuMetrics().k
+  const cap = (label: string, bottom: `${number}%`, right: `${number}%`) => (
+    <UiEntity
+      key={label}
+      uiTransform={{
+        positionType: 'absolute',
+        position: { bottom, right },
+        width: 'auto',
+        height: 'auto',
+        padding: { left: 6 * k, right: 6 * k, top: 2 * k, bottom: 2 * k }
+      }}
+      uiBackground={{ color: Color4.create(0, 0, 0, 0.55) }}
+    >
+      <Label value={label} fontSize={12 * k} color={ACCENT} textAlign="middle-center" />
+    </UiEntity>
+  )
+  return (
+    <UiEntity uiTransform={{ positionType: 'absolute', width: '100%', height: '100%' }} uiBackground={{ color: Color4.create(0, 0, 0, 0) }}>
+      {cap('THRUSTERS', '22%', '6%')}
+      {cap('ROLL', '34%', '20%')}
+      {cap('RESPAWN', '34%', '6%')}
+      <UiEntity
+        uiTransform={{
+          positionType: 'absolute',
+          position: { bottom: '6%', right: '6%' },
+          width: 150 * k,
+          height: 76 * k,
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center'
+        }}
+        uiBackground={{ color: Color4.create(0.1, 0.85, 1, 0.35) }}
+        onMouseDown={() => {
+          touch.throttle = true
+        }}
+        onMouseUp={() => {
+          touch.throttle = false
+        }}
+      >
+        <Label value="ACCELERATE" fontSize={16 * k} color={Color4.White()} textAlign="middle-center" />
+        <Label value="double touch for boost" fontSize={10 * k} color={Color4.White()} textAlign="middle-center" />
+      </UiEntity>
     </UiEntity>
   )
 }
@@ -719,6 +808,7 @@ function Hud() {
         </UiEntity>
       </UiEntity>
 
+      <MobileControls />
       <Menu />
 
       {/* Bottom band: speed centred, status right, bottom-left left to the chat. */}

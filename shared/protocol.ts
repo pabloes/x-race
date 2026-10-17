@@ -167,8 +167,8 @@ export type RaceState = {
   /** Room settings, so the menu always shows what the server actually has. */
   mode: RaceMode
   bots: number
-  /** True while the lobby is counting down to an automatic start. */
-  autoStart: boolean
+  /** True while the join window is open and START is not available yet. */
+  joining: boolean
 }
 
 export type Standing = {

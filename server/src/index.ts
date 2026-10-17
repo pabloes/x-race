@@ -115,7 +115,7 @@ async function main(): Promise<void> {
           room.onRespawnRequest(playerId)
           break
         case 'start':
-          room.onStartRequest()
+          room.onStartRequest(now())
           break
         case 'leave-race':
           room.onLeaveRace(playerId, now())

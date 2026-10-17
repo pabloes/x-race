@@ -25,6 +25,7 @@ import { PLAYER_NAME, serverUrl } from './config'
 import { readInputBits, respawnPressed } from './input'
 import { Connection } from './net/connection'
 import { SPIKE_CANNON, startCannonSpike } from './spike-cannon'
+import { detectPlatform } from './platform'
 import { buildTrack } from './track-render'
 import { hud, menu, setupUi } from './ui'
 
@@ -192,7 +193,7 @@ function hudSystem(dt: number): void {
     hud.laps = race.laps
     hud.mode = race.mode
     hud.bots = race.bots
-    hud.autoStart = race.autoStart
+    hud.joining = race.joining
     if (race.phase === 'countdown') {
       const seconds = Math.ceil(race.phaseMs / 1000)
       hud.bigMessage = seconds > 0 ? String(seconds) : 'GO!'
@@ -212,6 +213,8 @@ function hudSystem(dt: number): void {
 }
 
 export function main(): void {
+  // Asked once: it decides whether the on-screen driving controls exist at all.
+  void detectPlatform()
   buildTrack()
   // Measurement only, on the cannon-prediction branch: see spike-cannon.ts. Off unless
   // it is being read, because a cannon world stepping in the scene thread is exactly the

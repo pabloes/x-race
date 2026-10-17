@@ -381,17 +381,14 @@ export const TRICK = {
 export const RACE = {
   laps: 3,
   /**
-   * Racers needed before the shared room starts a race on its own.
+   * How long the shared room holds the door open before anyone may start.
    *
-   * Two, not one: with one it started the moment a single driver walked in — the client
-   * marks itself ready on connect, so "everyone is ready" was true immediately and the
-   * countdown ran without anyone asking for it. A multiplayer lobby waiting for nobody is
-   * just a solo race in the wrong room, and solo has its own room now. One player can
-   * still race here, they just have to press START.
+   * Nothing starts on its own any more: the window is there so a race cannot begin the
+   * second someone walks in, and once it has passed, any driver pressing START runs the
+   * countdown for everyone. Solo rooms have no window — it is your own room, and waiting
+   * twenty seconds for yourself is absurd.
    */
-  minPlayers: 2,
-  /** Lobby wait before auto-starting once minPlayers is met. */
-  lobbyMs: 15000,
+  joinWindowMs: 20000,
   countdownMs: 4000,
   /** Grace period after the winner finishes before the race is force-ended. */
   finishGraceMs: 20000,

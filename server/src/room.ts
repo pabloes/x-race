@@ -143,6 +143,15 @@ export class Room {
   private laps: number = RACE.laps
   /** Set by the START button; cleared when the countdown begins. */
   private startRequested = false
+  /**
+   * When the shared room's door closes, in server clock ms.
+   *
+   * Kept apart from `phaseEndsMs`, which is only what the HUD counts down: deriving the
+   * window from that field meant clearing it on expiry, and a cleared timer looks exactly
+   * like a timer that was never started, so the window re-armed itself every tick and
+   * START was refused forever.
+   */
+  private joinWindowEndsMs = 0
 
   constructor(private readonly world: PhysicsWorld) {}
 
@@ -178,6 +187,11 @@ export class Room {
     const spawn = TRACK.spawns[this.racerCount() % TRACK.spawns.length]
     const car = new CarSim(id, name, this.world.createVehicle(spawn.pos, spawn.yaw), spawn)
     car.lapStartMs = nowMs
+    // The door opens for the first arrival into an empty room, not for each one: later
+    // arrivals join the window already running.
+    if (this.players.size === 0 && this.phase === 'lobby') {
+      this.joinWindowEndsMs = nowMs + RACE.joinWindowMs
+    }
     const player = new Player(id, name, connection, car)
     // Arriving while a race is on makes you a spectator, not a car dropped onto a moving
     // circuit two laps behind. The grid slot comes with the next lobby, which is the same
@@ -237,9 +251,16 @@ export class Room {
     this.players.get(id)?.car.requestRespawn()
   }
 
-  /** START: skip the lobby wait and go straight to the countdown. */
-  onStartRequest(): void {
-    if (this.phase === 'lobby') this.startRequested = true
+  /**
+   * START: run the countdown, for everyone in this room.
+   *
+   * Ignored while the join window is still open, which is the only thing that window is
+   * for: it stops a race starting on top of people who are still walking in.
+   */
+  onStartRequest(nowMs: number): void {
+    if (this.phase !== 'lobby') return
+    if (this.mode === 'multiplayer' && nowMs < this.joinWindowEndsMs) return
+    this.startRequested = true
   }
 
   /**
@@ -432,22 +453,10 @@ export class Room {
           this.beginCountdown(nowMs)
           return
         }
-        // Solo waits for the START button. Multiplayer also auto-starts once everyone is
-        // ready or the lobby timer runs out, so a room of strangers still gets going.
-        if (this.mode === 'multiplayer') {
-          // The lobby only counts down once there is actually a field to race. Below that
-          // it waits, and START is the way out for whoever does not want to.
-          const racing = [...this.players.values()].filter((p) => !p.spectator)
-          if (racing.length < RACE.minPlayers) {
-            this.phaseEndsMs = 0
-            return
-          }
-          const everyoneReady = racing.every((p) => p.ready)
-          if (this.phaseEndsMs === 0) this.phaseEndsMs = nowMs + RACE.lobbyMs
-          if (everyoneReady || nowMs >= this.phaseEndsMs) this.beginCountdown(nowMs)
-        } else {
-          this.phaseEndsMs = 0
-        }
+        // Nothing starts by itself. Multiplayer holds the door open for a while first;
+        // solo is ready the moment its player is.
+        this.phaseEndsMs =
+          this.mode === 'multiplayer' && nowMs < this.joinWindowEndsMs ? this.joinWindowEndsMs : 0
         return
       }
       case 'countdown': {
@@ -481,6 +490,8 @@ export class Room {
           this.phase = 'lobby'
           this.phaseEndsMs = 0
           this.startRequested = false
+          // A fresh door for the next race, so the field can change between them.
+          this.joinWindowEndsMs = nowMs + RACE.joinWindowMs
           for (const p of this.players.values()) p.ready = false
           this.resetGrid(nowMs)
           this.playersDirty = true
@@ -541,7 +552,7 @@ export class Room {
       laps: this.laps,
       mode: this.mode,
       bots: this.botCount,
-      autoStart: this.mode === 'multiplayer' && this.phase === 'lobby' && this.phaseEndsMs > 0
+      joining: this.mode === 'multiplayer' && this.phase === 'lobby' && this.phaseEndsMs > 0
     }
   }
 
