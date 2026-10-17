@@ -26,7 +26,6 @@ export const REMOTE_SERVER_URL = 'wss://elon-roadster-race.zeroxwork.com'
  */
 export async function serverUrl(): Promise<string> {
   try {
-    return REMOTE_SERVER_URL
     const { realmInfo } = await getRealm({})
     return realmInfo?.isPreview ? LOCAL_SERVER_URL : REMOTE_SERVER_URL
   } catch {
