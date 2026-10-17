@@ -225,8 +225,13 @@ export class CarSim {
 
     // --- Boost, thrusters and charge ---
     const hasCharge = this.charge > CHARGE.boostFloor
-    const wantsBoost = racing && hasBit(this.bits, InputBit.Boost) && hasCharge
-    this.boosting = wantsBoost
+    // Hysteresis on the boost, which is why `boostFloor` exists at all: it takes a floor's
+    // worth of battery to *start* a boost, but once lit it runs until the battery is
+    // actually empty. Using the same threshold for both made the boost chatter on and off
+    // around it — the regen tops the bar back over the floor, it re-engages, drains below
+    // again — which from the driver's seat looks like a boost that is stuck half on.
+    const askingBoost = racing && hasBit(this.bits, InputBit.Boost)
+    this.boosting = askingBoost && (this.boosting ? this.charge > 0 : hasCharge)
     const wasThrusting = this.thrusting
     this.thrusting = racing && hasBit(this.bits, InputBit.Thrust) && hasCharge
     if (this.thrusting) {

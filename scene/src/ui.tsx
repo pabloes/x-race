@@ -109,6 +109,15 @@ export type HudState = {
   menuMinimised: boolean
   /** Previous frame's role, to fold the menu the moment you become a spectator. */
   wasSpectator: boolean
+  /**
+   * The boost bit this client is sending right now.
+   *
+   * Not the same thing as the car boosting: the double tap stays latched while the
+   * throttle is held, so the request can be alive with an empty battery and nothing
+   * happening. Showing both is how a player can tell "I am asking and it will not fire"
+   * from "I am not asking".
+   */
+  boostRequested: boolean
   /** 0 folded, 1 open. Eased every frame so the fold is a movement, not a cut. */
   menuAnim: number
 }
@@ -149,6 +158,7 @@ export const hud: HudState = {
   spectator: false,
   menuMinimised: false,
   wasSpectator: false,
+  boostRequested: false,
   menuAnim: 1
 }
 
@@ -552,6 +562,33 @@ function Messages() {
   )
 }
 
+/**
+ * A lamp for the rear boost.
+ *
+ * Three states rather than two, because two could not explain what the player was
+ * seeing: lit means the server has the boost engaged, amber means this client is asking
+ * for it and the car is not doing it — an empty battery, or the double tap still latched
+ * with the throttle held — and dark means nothing is being asked for. The middle state is
+ * the one that answers "why does it look like the boost is stuck on".
+ */
+function Led(props: { on: boolean; asking: boolean; label: string }) {
+  const colour = props.on
+    ? Color4.create(1, 0.85, 0.2, 1)
+    : props.asking
+      ? Color4.create(0.75, 0.45, 0.05, 1)
+      : Color4.create(1, 1, 1, 0.14)
+  return (
+    <UiEntity uiTransform={{ width: 'auto', flexDirection: 'row', alignItems: 'center', margin: { left: 12 } }}>
+      <UiEntity uiTransform={{ width: 14, height: 14 }} uiBackground={{ color: colour }} />
+      <Label
+        value={props.label}
+        fontSize={12}
+        color={props.on || props.asking ? Color4.White() : Color4.Gray()}
+      />
+    </UiEntity>
+  )
+}
+
 /** Speed, charge and the state of the car's two forms of thrust. */
 function SpeedPanel() {
   const boosting = (hud.flags & CarFlag.Boosting) !== 0
@@ -563,11 +600,18 @@ function SpeedPanel() {
       uiTransform={{ width: 330, flexDirection: 'column', alignItems: 'center', padding: 9 }}
       uiBackground={{ color: PANEL }}
     >
-      <Label
-        value={`${Math.round(hud.speedKmh)} km/h${boosting ? '  BOOST' : ''}`}
-        fontSize={26}
-        color={boosting ? Color4.create(1, 0.85, 0.2, 1) : Color4.White()}
-      />
+      <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+        <Label
+          value={`${Math.round(hud.speedKmh)} km/h`}
+          fontSize={26}
+          color={boosting ? Color4.create(1, 0.85, 0.2, 1) : Color4.White()}
+        />
+        <Led
+          on={boosting}
+          asking={hud.boostRequested}
+          label="BOOST"
+        />
+      </UiEntity>
       {/* Charge bar: an outer track with an inner fill scaled by the battery level. */}
       <UiEntity
         uiTransform={{ width: 292, height: 16, margin: { top: 4 } }}

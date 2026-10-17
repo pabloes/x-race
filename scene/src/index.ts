@@ -110,6 +110,7 @@ function renderSystem(): void {
   // The local car is sampled on a much shorter delay than the rest; see the buffer.
   const cars = connection.buffer.sample(localNow, connection.playerId)
   const braking = (inputBits & (InputBit.Brake | InputBit.Handbrake)) !== 0
+  hud.boostRequested = (inputBits & InputBit.Boost) !== 0
   for (const [, car] of cars) {
     renderCar(car)
     updateSkidmarks(car)
