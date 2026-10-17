@@ -21,5 +21,8 @@
     "singleQuote": true,
     "printWidth": 120,
     "trailingComma": "none"
+  },
+  "dependencies": {
+    "cannon-es": "^0.20.0"
   }
 }

@@ -46,6 +46,8 @@ export type HudState = {
   trackMismatch: boolean
   /** Host of the race server this run picked, so it is never a guess which one you are on. */
   serverHost: string
+  /** Measurement line from the cannon spike; empty when it is not running. */
+  spike: string
   /** Every car on track, for the minimap. */
   blips: { id: number; x: number; z: number; mine: boolean }[]
   /** Where the next checkpoint is, so the map answers "where do I go now". */
@@ -85,6 +87,7 @@ export const hud: HudState = {
   extrapolationMs: 0,
   trackMismatch: false,
   serverHost: '',
+  spike: '',
   blips: [],
   nextCheckpoint: null,
   phase: 'lobby',
@@ -434,6 +437,9 @@ function StatusLine() {
         color={hud.trackMismatch ? WARN : hud.connected ? Color4.create(0.5, 0.9, 0.5, 1) : WARN}
         textAlign="middle-right"
       />
+      {hud.spike !== '' ? (
+        <Label value={hud.spike} fontSize={12} color={Color4.create(1, 0.8, 0.3, 1)} textAlign="middle-right" />
+      ) : null}
       <Label
         value={hud.serverHost}
         fontSize={11}
