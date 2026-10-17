@@ -3,14 +3,14 @@
  *
  * Built like the skid marks — a fixed pool of entities used as a ring, so a race never
  * creates a single entity after the first lap — but with a life instead of a length: a
- * segment is dropped every so many metres, dims once partway through, and is hidden when
- * its time is up. That is what makes the ribbon shrink back to the car when you stop
- * rather than hanging in the air.
+ * segment is dropped every so many metres and goes out when its time is up. That is what
+ * makes the ribbon shrink back to the car when you stop rather than hanging in the air.
  *
- * The fade is two steps rather than a smooth curve on purpose. Every change here is a
- * component write to the renderer, and a per-frame fade across eight cars would be a few
- * thousand of them a second for an effect nobody is looking at closely enough to count
- * the steps.
+ * Nothing is animated between those two moments. Every change here is a component write
+ * to the renderer, so a per-frame fade across eight cars would be thousands of writes a
+ * second; and the cheap approximation of one — narrowing the segment halfway through —
+ * looked like the ribbon flattening out before it vanished, which is worse than a clean
+ * cut at a short life.
  *
  * Positions are in the car's own frame and transformed by its rotation each time, so the
  * ribbon comes out of the lamps at whatever angle the car is at, including upside down on
@@ -36,13 +36,11 @@ const SEGMENTS = 20
 /** Metres between segments. */
 const SPACING = 1.0
 /** How long a segment lasts, in milliseconds. */
-const LIFE_MS = 700
-/** Fraction of its life after which a segment dims and narrows. */
-const DIM_AT = 0.5
+const LIFE_MS = 320
 /** Below this speed the car is not drawing a ribbon, it is parked. */
 const MIN_SPEED = 6
 
-type Segment = { entity: Entity; bornAt: number; dimmed: boolean; live: boolean }
+type Segment = { entity: Entity; bornAt: number; live: boolean }
 type Trail = { segments: Segment[]; next: number; last: { x: number; y: number; z: number } | null }
 
 const trails = new Map<number, Trail>()
@@ -52,13 +50,13 @@ function create(): Segment {
   Transform.create(entity, { position: { x: 0, y: -100, z: 0 } })
   MeshRenderer.setBox(entity)
   Material.setPbrMaterial(entity, {
-    albedoColor: Color4.create(1, 0.08, 0.05, 1),
-    emissiveColor: Color4.create(1, 0.1, 0.05, 1),
-    emissiveIntensity: 5,
+    albedoColor: Color4.create(1, 0.02, 0.02, 1),
+    emissiveColor: Color4.create(1, 0, 0, 1),
+    emissiveIntensity: 11,
     roughness: 1
   })
   VisibilityComponent.create(entity, { visible: false })
-  return { entity, bornAt: 0, dimmed: false, live: false }
+  return { entity, bornAt: 0, live: false }
 }
 
 function show(segment: Segment, at: { x: number; y: number; z: number }, rotation: Quaternion, now: number): void {
@@ -69,7 +67,6 @@ function show(segment: Segment, at: { x: number; y: number; z: number }, rotatio
   const visibility = VisibilityComponent.getMutable(segment.entity)
   if (!visibility.visible) visibility.visible = true
   segment.bornAt = now
-  segment.dimmed = false
   segment.live = true
 }
 
@@ -113,16 +110,15 @@ export function updateTrails(car: SampledCar, now: number): void {
     }
   }
 
+  // A segment keeps its shape for its whole life and then goes out. An earlier version
+  // narrowed it halfway through as a fade, which at speed read as the ribbon flattening
+  // into a plate before vanishing: worse than no fade at all, and an extra write per
+  // segment to get it.
   for (const segment of trail.segments) {
     if (!segment.live) continue
-    const age = (now - segment.bornAt) / LIFE_MS
-    if (age >= 1) {
+    if (now - segment.bornAt >= LIFE_MS) {
       segment.live = false
       VisibilityComponent.getMutable(segment.entity).visible = false
-    } else if (age >= DIM_AT && !segment.dimmed) {
-      segment.dimmed = true
-      const transform = Transform.getMutable(segment.entity)
-      transform.scale = { x: 0.7, y: 0.03, z: SPACING * 0.9 }
     }
   }
 }
