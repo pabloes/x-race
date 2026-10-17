@@ -118,8 +118,6 @@ const BAR = Color4.create(0, 0, 0, 0.72)
 const ACCENT = Color4.create(0.1, 0.85, 1, 1)
 const WARN = Color4.create(1, 0.55, 0.1, 1)
 
-/** Gap above the left column, clearing the explorer's own top-left controls. */
-const LEFT_COLUMN_TOP = 26
 /** Side of the HUD track map, in pixels. */
 const MAP_SIZE = 168
 /**
@@ -324,15 +322,12 @@ function Minimap() {
   )
 }
 
-/**
- * Standings. They live on the left, under nothing: the race panel and the map moved to
- * the right, below the explorer's own minimap.
- */
+/** Standings, under the race panel and the map in the right-hand column. */
 function Standings() {
   if (hud.standings.length === 0) return null
   return (
     <UiEntity
-      uiTransform={{ flexDirection: 'column', padding: 8, minWidth: 180, margin: { top: 8 } }}
+      uiTransform={{ flexDirection: 'column', padding: 8, minWidth: 190, margin: { top: 8 } }}
       uiBackground={{ color: PANEL }}
     >
       <Label value="STANDINGS" fontSize={13} color={ACCENT} />
@@ -476,26 +471,23 @@ function Hud() {
       {/* Middle band: panels left, messages centre, and a gutter on the right that is
           deliberately empty — the explorer's minimap lives there. */}
       <UiEntity uiTransform={{ width: '100%', flexGrow: 1, flexDirection: 'row', alignItems: 'flex-start' }}>
+        <Messages />
+        {/* Everything that is read rather than watched lives in one column on the right,
+            below the explorer's own minimap: lap and position, the track map beside them,
+            and the standings under both. */}
         <UiEntity
           uiTransform={{
             width: 'auto',
             flexDirection: 'column',
-            margin: { left: 14, top: LEFT_COLUMN_TOP }
-          }}
-        >
-          <Standings />
-        </UiEntity>
-        <Messages />
-        <UiEntity
-          uiTransform={{
-            width: 'auto',
-            flexDirection: 'row',
-            alignItems: 'flex-start',
+            alignItems: 'flex-end',
             margin: { right: 14, top: RIGHT_COLUMN_TOP }
           }}
         >
-          <Minimap />
-          <RacePanel />
+          <UiEntity uiTransform={{ width: 'auto', flexDirection: 'row', alignItems: 'flex-start' }}>
+            <Minimap />
+            <RacePanel />
+          </UiEntity>
+          <Standings />
         </UiEntity>
       </UiEntity>
 

@@ -28,7 +28,7 @@ export const REMOTE_SERVER_URL = 'wss://elon-roadster-race.zeroxwork.com'
  * and this is the one line that does it. Harmless if it is left on — a published scene
  * uses the remote server either way.
  */
-const PREVIEW_AGAINST_REMOTE = true
+const PREVIEW_AGAINST_REMOTE = false
 
 /**
  * The server this run should talk to: the local one in preview, the deployed one when
