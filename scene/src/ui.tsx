@@ -381,7 +381,7 @@ function Menu() {
             // an entity is what a row of chips has to be.
             <UiEntity uiTransform={{ width: 'auto', flexDirection: 'row' }}>
               <Chip
-                label={hud.joining ? 'WAIT…' : 'START RACE'}
+                label={hud.joining ? `WAIT ${Math.max(0, Math.ceil(hud.phaseMs / 1000))}s` : 'START RACE'}
                 scale={k}
                 wide
                 active={inLobby && !hud.joining}

@@ -200,11 +200,25 @@ def material_for(name, raw, body_colour=None):
     if name == 'Body' and body_colour is not None:
         colour = list(body_colour)
     emissive, strength = EMISSIVE.get(name, (None, 0.0))
+    # When a factor is absent, glTF says metallic 1.0 and roughness 1.0 — a mirror. That
+    # is almost never what an exporter meant by leaving it out, and applied to a white
+    # surface it renders as whatever the sky is doing, which is how trim and panels came
+    # back washed out. Absent means matte plastic here, unless the material's own name
+    # says metal, which is the only other signal the file offers.
+    looks_metal = any(word in name.lower() for word in ('metal', 'badge', 'chrome'))
+    metallic = pbr.get('metallicFactor', 1.0 if looks_metal else 0.0)
+    roughness = pbr.get('roughnessFactor', 0.35 if looks_metal else 0.6)
+    if name == 'Body' and body_colour is not None:
+        # Paint, not chrome. The source finish is metallic 0.3 at roughness 0.1, which on
+        # flat low-poly panels reflects the sky hard enough to wash the livery out: the
+        # roof keeps its colour and the door-sized faces come back near white. Matte paint
+        # lets the albedo win on every panel, which is the whole point of having liveries.
+        metallic = 0.05
+        roughness = 0.5
     return make_car.pbr(
         colour,
-        # glTF's own defaults when a factor is absent, not invented ones.
-        metallic=pbr.get('metallicFactor', 1.0),
-        roughness=pbr.get('roughnessFactor', 1.0),
+        metallic=metallic,
+        roughness=roughness,
         emissive=emissive,
         strength=strength,
         double_sided=raw.get('doubleSided', False)
