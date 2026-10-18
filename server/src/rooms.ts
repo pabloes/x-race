@@ -16,17 +16,25 @@
 import type { RaceMode } from '../../shared/protocol'
 import { createWorld } from './physics'
 import { Room, type Connection } from './room'
+import type { RaceRecord } from './stats'
 
-type Seat = { room: Room; playerId: number; name: string }
+type Seat = { room: Room; playerId: number; name: string; address?: string }
 
 export class Rooms {
   private readonly shared: Room
   private readonly seats = new Map<Connection, Seat>()
   private readonly solo = new Map<Connection, Room>()
 
-  constructor() {
-    this.shared = new Room(createWorld())
-    this.shared.onMode('multiplayer')
+  /** Every room reports its finished races here, solo rooms included. */
+  constructor(private readonly onRaceFinished: (record: RaceRecord) => void = () => {}) {
+    this.shared = this.build('multiplayer')
+  }
+
+  private build(mode: RaceMode): Room {
+    const room = new Room(createWorld())
+    room.onMode(mode)
+    room.onRaceFinished = this.onRaceFinished
+    return room
   }
 
   get playerCount(): number {
@@ -48,10 +56,10 @@ export class Rooms {
     return this.seats.get(connection)
   }
 
-  join(name: string, connection: Connection, nowMs: number): Seat | null {
-    const player = this.shared.join(name, connection, nowMs)
+  join(name: string, connection: Connection, nowMs: number, address?: string): Seat | null {
+    const player = this.shared.join(name, connection, nowMs, address)
     if (!player) return null
-    const seat: Seat = { room: this.shared, playerId: player.id, name }
+    const seat: Seat = { room: this.shared, playerId: player.id, name, address }
     this.seats.set(connection, seat)
     return seat
   }
@@ -74,18 +82,17 @@ export class Rooms {
 
     let target: Room
     if (wantsSolo) {
-      target = new Room(createWorld())
-      target.onMode('solo')
+      target = this.build('solo')
       this.solo.set(connection, target)
     } else {
       target = this.shared
     }
-    const player = target.join(seat.name, connection, nowMs)
+    const player = target.join(seat.name, connection, nowMs, seat.address)
     if (!player) {
       this.seats.delete(connection)
       return undefined
     }
-    const moved: Seat = { room: target, playerId: player.id, name: seat.name }
+    const moved: Seat = { room: target, playerId: player.id, name: seat.name, address: seat.address }
     this.seats.set(connection, moved)
     return moved
   }

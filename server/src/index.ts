@@ -14,6 +14,8 @@ import { parseClientMessage, type ServerMessage } from '../../shared/protocol'
 import { engineName, initPhysics } from './physics'
 import type { Connection } from './room'
 import { Rooms } from './rooms'
+import { Stats } from './stats'
+import { statsPage } from './stats-page'
 
 const PORT = Number(process.env.PORT ?? NET.defaultPort)
 /** Never run more than this many ticks in one catch-up pass. */
@@ -22,7 +24,8 @@ const MAX_CATCHUP_TICKS = 8
 async function main(): Promise<void> {
   await initPhysics()
 
-  const rooms = new Rooms()
+  const stats = new Stats()
+  const rooms = new Rooms((record) => stats.recordRace(record))
   const started = performance.now()
   const now = () => performance.now() - started
 
@@ -42,6 +45,13 @@ async function main(): Promise<void> {
           uptimeMs: Math.round(now())
         })
       )
+      return
+    }
+    // The admin page. No authentication here on purpose: it belongs in front of this
+    // server, where CapRover can put a password on the route without the game knowing.
+    if (req.method === 'GET' && req.url === '/stats') {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+      res.end(statsPage(stats, engineName(), rooms.roomCount, rooms.playerCount))
       return
     }
     res.writeHead(404, { 'content-type': 'text/plain' })
@@ -81,12 +91,17 @@ async function main(): Promise<void> {
           return
         }
         const name = String(message.name ?? 'driver').slice(0, 20) || 'driver'
-        const seat = rooms.join(name, connection, now())
+        // Only an address that looks like one is kept: this is reported by the client,
+        // so it is treated as a claim about identity, not as proof of it.
+        const claimed = typeof message.address === 'string' ? message.address.trim() : ''
+        const address = /^0x[0-9a-fA-F]{40}$/.test(claimed) ? claimed : undefined
+        const seat = rooms.join(name, connection, now(), address)
         if (!seat) {
           connection.close('room is full')
           return
         }
         playerId = seat.playerId
+        stats.sawVisitor(name, address)
         console.log(`[server] ${name} joined as #${seat.playerId} (${rooms.playerCount} across ${rooms.roomCount} room(s))`)
         return
       }

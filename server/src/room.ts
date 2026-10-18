@@ -42,6 +42,7 @@ import {
 import { BOT_SKILLS, BotDriver } from './bot-driver'
 import { CarSim } from './car-sim'
 import type { PhysicsWorld } from './physics/types'
+import type { RaceRecord } from './stats'
 
 export type Connection = {
   send(message: ServerMessage): void
@@ -81,7 +82,9 @@ class Player implements Racer {
     readonly id: number,
     public name: string,
     connection: Connection,
-    readonly car: CarSim
+    readonly car: CarSim,
+    /** Signed-in wallet, when there is one. Guests drive without. */
+    readonly address?: string
   ) {
     this.connection = connection
   }
@@ -125,6 +128,8 @@ class Player implements Racer {
 }
 
 export class Room {
+  /** Called when a race ends, with who was in it. The room keeps no history itself. */
+  onRaceFinished: ((record: RaceRecord) => void) | null = null
   private readonly players = new Map<number, Player>()
   private readonly bots = new Map<number, Racer>()
   private nextId = 1
@@ -181,7 +186,7 @@ export class Room {
 
   // --- Membership ----------------------------------------------------------
 
-  join(name: string, connection: Connection, nowMs: number): Player | null {
+  join(name: string, connection: Connection, nowMs: number, address?: string): Player | null {
     if (this.players.size >= RACE.maxPlayers) return null
     const id = this.nextId++
     const spawn = TRACK.spawns[this.racerCount() % TRACK.spawns.length]
@@ -192,7 +197,7 @@ export class Room {
     if (this.players.size === 0 && this.phase === 'lobby') {
       this.joinWindowEndsMs = nowMs + RACE.joinWindowMs
     }
-    const player = new Player(id, name, connection, car)
+    const player = new Player(id, name, connection, car, address)
     // Arriving while a race is on makes you a spectator, not a car dropped onto a moving
     // circuit two laps behind. The grid slot comes with the next lobby, which is the same
     // place everyone else gets theirs.
@@ -429,6 +434,27 @@ export class Room {
     }
   }
 
+  /** Hands the finished race to whoever is keeping the book, if anyone is. */
+  private reportRace(racers: Racer[], nowMs: number): void {
+    if (!this.onRaceFinished || racers.length === 0) return
+    this.onRaceFinished({
+      startedAt: Date.now() - Math.round(nowMs - this.raceStartMs),
+      endedAt: Date.now(),
+      mode: this.mode,
+      laps: this.laps,
+      participants: racers.map((r) => ({
+        name: r.name,
+        address: (r as Player).address,
+        rank: r.car.rank,
+        laps: r.car.lap,
+        bestLapMs: Math.round(r.car.bestLapMs),
+        score: r.car.score,
+        finished: r.car.finished,
+        bot: r.driver !== null
+      }))
+    })
+  }
+
   private finish(racer: Racer, nowMs: number): void {
     if (racer.car.finished) return
     racer.car.finished = true
@@ -482,6 +508,7 @@ export class Room {
           this.phase = 'finished'
           this.phaseEndsMs = nowMs + RACE.podiumMs
           this.events.push({ t: 'race-end', standings: this.standings() })
+          this.reportRace(all, nowMs)
         }
         return
       }

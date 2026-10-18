@@ -207,7 +207,11 @@ export type GameEvent =
 export type RaceMode = 'solo' | 'multiplayer'
 
 export type ClientMessage =
-  | { t: 'join'; v: number; name: string }
+  /**
+   * `address` is the signed-in wallet when there is one. Guests have none, and the
+   * server treats them as such rather than inventing an identity for them.
+   */
+  | { t: 'join'; v: number; name: string; address?: string }
   | { t: 'in'; i: WireInput[] }
   | { t: 'ready'; ready: boolean }
   | { t: 'respawn' }

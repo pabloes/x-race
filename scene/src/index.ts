@@ -21,7 +21,7 @@ import { CHECKPOINTS } from '../../shared/track'
 import { carRoot, hideMissing, renderCar } from './car'
 import { updateSkidmarks } from './skidmarks'
 import { attachTo, detach } from './camera'
-import { PLAYER_NAME, serverUrl } from './config'
+import { playerIdentity, serverUrl } from './config'
 import { readInputBits, respawnPressed } from './input'
 import { Connection } from './net/connection'
 import { SPIKE_CANNON, startCannonSpike } from './spike-cannon'
@@ -45,7 +45,7 @@ let players: PlayerInfo[] = []
 /** This frame's own input bits, kept for the sounds that have no flag on the wire. */
 let inputBits = 0
 
-const connection = new Connection(PLAYER_NAME, {
+const connection = new Connection({
   onEvents: handleEvents,
   onPlayers: (list) => {
     players = list
@@ -233,8 +233,9 @@ export function main(): void {
   // The realm has to be asked before the first socket is opened, so the connection starts
   // one turn of the event loop later than everything else. The HUD already says
   // "connecting to race server…" until the welcome lands, so there is nothing to hide.
-  void serverUrl().then((url) => {
-    console.log(`[roadster] server ${url}`)
+  void Promise.all([serverUrl(), playerIdentity()]).then(([url, identity]) => {
+    connection.identity = identity
+    console.log(`[roadster] server ${url} as ${identity.name}${identity.address ? ` (${identity.address})` : ' (guest)'}`)
     // Strip the scheme: the host is the part worth a line of the HUD.
     hud.serverHost = url.replace(/^wss?:\/\//, '')
     connection.connect(url)

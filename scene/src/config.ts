@@ -13,6 +13,7 @@
  */
 
 import { getRealm } from '~system/Runtime'
+import { getUserData } from '~system/UserIdentity'
 
 /** Where `npm run server` listens. */
 export const LOCAL_SERVER_URL = 'ws://localhost:8787'
@@ -45,5 +46,20 @@ export async function serverUrl(): Promise<string> {
   }
 }
 
-/** Shown in the standings. The scene could read the signed-in profile instead. */
-export const PLAYER_NAME = 'driver'
+/**
+ * Who is driving, read from the explorer rather than made up.
+ *
+ * A guest has a display name and no wallet, and that is reported as it is: the server
+ * counts visitors by address when there is one, and the alternative — inventing an id —
+ * would quietly turn one guest into many or many into one.
+ */
+export async function playerIdentity(): Promise<{ name: string; address?: string }> {
+  try {
+    const { data } = await getUserData({})
+    const name = (data?.displayName ?? '').trim() || 'driver'
+    const address = data?.hasConnectedWeb3 ? data?.userId : undefined
+    return { name, address }
+  } catch {
+    return { name: 'driver' }
+  }
+}

@@ -69,10 +69,10 @@ export class Connection {
   private queue: Input[] = []
   private currentBits = 0
 
-  constructor(
-    private readonly name: string,
-    private readonly handlers: Handlers
-  ) {}
+  constructor(private readonly handlers: Handlers) {}
+
+  /** Who the server is told we are. Set before connecting; guests have no address. */
+  identity: { name: string; address?: string } = { name: 'driver' }
 
   /** The server this connection talks to, kept for the reconnect attempts. */
   private url = ''
@@ -87,7 +87,7 @@ export class Connection {
         this.status = 'connected'
         this.attempts = 0
         this.lastError = ''
-        this.send({ t: 'join', v: NET.protocolVersion, name: this.name })
+        this.send({ t: 'join', v: NET.protocolVersion, ...this.identity })
         // Ping on the next update, which is the first moment a real timestamp exists.
         // Pinging from here used to pass 0 as the send time, so the first round-trip
         // sample came out as the entire scene uptime; that poisoned the clock offset,

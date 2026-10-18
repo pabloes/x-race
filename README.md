@@ -295,6 +295,60 @@ que el del banco de pruebas offline. Es una limitación de ese piloto, no del ju
 - **El avatar no se mueve con el coche.** Teletransportarlo a 30 Hz se ve como un tartamudeo;
   la cámara virtual enganchada al coche es lo que vende la conducción.
 
+## Panel de administración
+
+`GET /stats` en el servidor devuelve una página con los visitantes únicos y el registro de
+carreras con sus participantes y sus direcciones. Es HTML servido desde el propio servidor,
+sin framework y sin JavaScript más allá de un `meta refresh` de 30 s: es una página que se
+lee, no una que se usa.
+
+**No lleva autenticación a propósito.** La contraseña va delante, en CapRover (Basic Auth
+sobre la ruta), que es donde vive ese tipo de cosa y no dentro del servidor de juego.
+
+**Qué cuenta como visitante.** Una wallet. El cliente lee la identidad del explorador con
+`getUserData()` y la manda en el `join`; quien entra como invitado no tiene dirección y se
+cuenta aparte, en un contador de "guest joins", en lugar de inventarle una identidad. El
+servidor valida el formato de la dirección antes de guardarla: es algo que afirma el
+cliente, no una prueba de nada.
+
+**Por defecto no sobrevive a un reinicio**, igual que las salas: todo vive en memoria. Para
+que persista, en CapRover:
+
+1. **App Configs → Persistent Directories**: añade un volumen montado en `/data`.
+2. **Environmental Variables**: `STATS_FILE=/data/stats.json`.
+
+Con eso el fichero se escribe tras cada carrera y se lee al arrancar. Sin volumen, un
+`STATS_FILE` dentro del contenedor se pierde en el siguiente despliegue.
+
+El registro guarda las últimas 300 carreras; las más viejas se caen por el final.
+
+## Panel de administracion
+
+`GET /stats` en el servidor devuelve una pagina con los visitantes unicos y el registro de
+carreras con sus participantes y sus direcciones. Es HTML servido desde el propio servidor,
+sin framework y sin JavaScript mas alla de un `meta refresh` de 30 s: es una pagina que se
+lee, no una que se usa.
+
+**No lleva autenticacion a proposito.** La contrasena va delante, en CapRover (Basic Auth
+sobre la ruta), que es donde vive ese tipo de cosa y no dentro del servidor de juego.
+
+**Que cuenta como visitante.** Una wallet. El cliente lee la identidad del explorador con
+`getUserData` y la manda en el `join`; quien entra como invitado no tiene direccion y se
+cuenta aparte, en un contador de "guest joins", en lugar de inventarle una identidad. El
+servidor valida el formato de la direccion antes de guardarla: es algo que afirma el
+cliente, no una prueba de nada.
+
+**Por defecto no sobrevive a un reinicio**, igual que las salas: todo vive en memoria. Para
+que persista, en CapRover:
+
+1. **App Configs / Persistent Directories**: anade un volumen montado en `/data`.
+2. **Environmental Variables**: `STATS_FILE=/data/stats.json`.
+
+Con eso el fichero se escribe tras cada carrera y se lee al arrancar. Sin volumen, un
+`STATS_FILE` dentro del contenedor se pierde en el siguiente despliegue.
+
+El registro guarda las ultimas 300 carreras; las mas viejas se caen por el final.
+
 ## Despliegue
 
 Son dos despliegues independientes: el servidor a un VPS y la escena a un World. La escena
