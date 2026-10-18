@@ -155,6 +155,14 @@ def collect(gltf, binary):
     return pieces
 
 
+# Materials whose surfaces are panels rather than closed volumes, and which therefore get
+# their back faces written out as well. `doubleSided` is in the file and Bevy honours it;
+# the Unity explorer culls anyway, and a car with its doors culled away is a car you can
+# see the far wheels through. Emitting both windings costs triangles and is the only
+# version that looks the same in both.
+TWO_SIDED_MATERIALS = {'Body', 'Matt', 'Black', 'Material.005', 'Badge'}
+
+
 def to_mesh(pieces, transform, keep=None):
     """
     Merges pieces into one mesh per material, applying `transform` to every vertex.
@@ -185,6 +193,21 @@ def to_mesh(pieces, transform, keep=None):
                     mesh.positions.append(tuple(moved[k]))
                     mesh.normals.append(tuple(normals[k]))
                 mesh.indices.append(index)
+            if material in TWO_SIDED_MATERIALS:
+                back = []
+                for k in tri:
+                    key = (
+                        round(moved[k][0], 4), round(moved[k][1], 4), round(moved[k][2], 4),
+                        -round(normals[k][0], 3), -round(normals[k][1], 3), -round(normals[k][2], 3)
+                    )
+                    index = mesh.lookup.get(key)
+                    if index is None:
+                        index = len(mesh.positions)
+                        mesh.lookup[key] = index
+                        mesh.positions.append(tuple(moved[k]))
+                        mesh.normals.append(tuple(-normals[k]))
+                    back.append(index)
+                mesh.indices += [back[0], back[2], back[1]]
     return meshes
 
 
@@ -205,9 +228,8 @@ def material_for(name, raw, body_colour=None):
     # surface it renders as whatever the sky is doing, which is how trim and panels came
     # back washed out. Absent means matte plastic here, unless the material's own name
     # says metal, which is the only other signal the file offers.
-    looks_metal = any(word in name.lower() for word in ('metal', 'badge', 'chrome'))
-    metallic = pbr.get('metallicFactor', 1.0 if looks_metal else 0.0)
-    roughness = pbr.get('roughnessFactor', 0.35 if looks_metal else 0.6)
+    metallic = pbr.get('metallicFactor', 1.0)
+    roughness = pbr.get('roughnessFactor', 1.0)
     if name == 'Body' and body_colour is not None:
         # Paint, not chrome. The source finish is metallic 0.3 at roughness 0.1, which on
         # flat low-poly panels reflects the sky hard enough to wash the livery out: the
