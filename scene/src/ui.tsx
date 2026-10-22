@@ -19,7 +19,8 @@ import ReactEcs, { Label, ReactEcsRenderer, UiEntity } from '@dcl/sdk/react-ecs'
 import { engine, UiCanvasInformation } from '@dcl/sdk/ecs'
 import { Color4 } from '@dcl/sdk/math'
 import { CHARGE, RACE } from '../../shared/constants'
-import { CarFlag, formatTime, type RaceMode, type RacePhase, type Standing } from '../../shared/protocol'
+import { CarFlag, formatTime, type RaceMode, type RacePhase, type Standing, type VoteCount } from '../../shared/protocol'
+import { TRACK_IDS, trackById, type TrackId } from '../../shared/tracks'
 import { activeTrack } from './active-track'
 import { touch } from './input'
 import { isMobile } from './platform'
@@ -33,6 +34,7 @@ export const menu = {
   setMode: (_mode: RaceMode) => {},
   setBots: (_count: number) => {},
   setLaps: (_laps: number) => {},
+  vote: (_track: TrackId) => {},
   start: () => {},
   leaveRace: () => {},
   setSpectator: (_on: boolean) => {}
@@ -40,7 +42,7 @@ export const menu = {
 
 /** Size the menu is drawn at before scaling: everything inside it is relative to this. */
 const MENU_DESIGN_WIDTH = 420
-const MENU_DESIGN_HEIGHT = 300
+const MENU_DESIGN_HEIGHT = 362
 /** The button the menu folds into. */
 const TAB_DESIGN_WIDTH = 150
 const TAB_DESIGN_HEIGHT = 40
@@ -127,6 +129,11 @@ export type HudState = {
   toastMs: number
   bigMessage: string
   // --- room settings, mirrored from the server ---
+  /** The circuit the room is on, and the lobby's vote count. */
+  track: TrackId
+  votes: VoteCount
+  /** What this player voted for this lobby, kept locally because the server does not echo it. */
+  myVote: TrackId | null
   mode: RaceMode
   bots: number
   /** The join window is open: START is not available yet. */
@@ -180,6 +187,9 @@ export const hud: HudState = {
   toast: '',
   toastMs: 0,
   bigMessage: '',
+  track: activeTrack().base,
+  votes: {},
+  myVote: null,
   mode: 'solo',
   bots: 0,
   joining: false,
@@ -194,6 +204,14 @@ const PANEL = Color4.create(0, 0, 0, 0.55)
 const BAR = Color4.create(0, 0, 0, 0.72)
 const ACCENT = Color4.create(0.1, 0.85, 1, 1)
 const WARN = Color4.create(1, 0.55, 0.1, 1)
+
+/**
+ * The map plate of each circuit, rendered by `tools/make-minimap.py`. A circuit without
+ * one gets a plain panel: the dots are still right, there is just nothing under them.
+ */
+const MINIMAPS: Partial<Record<TrackId, string>> = {
+  city: 'images/minimap.png'
+}
 
 /** Side of the HUD track map, in pixels. */
 const MAP_SIZE = 168
@@ -212,6 +230,8 @@ function chargeColour(): Color4 {
 
 /** A small clickable chip. Everything in the top bar is built from these. */
 function Chip(props: {
+  /** For chips built from a list. */
+  key?: string
   label: string
   scale: number
   active?: boolean
@@ -363,6 +383,22 @@ function Menu() {
         />
         <UiEntity uiTransform={{ width: 1, height: 10 * k }} />
 
+        <Row label={`TRACK · NOW ${trackById(hud.track).name}`} scale={k}>
+          {TRACK_IDS.map((id) => {
+            const count = hud.votes[id] ?? 0
+            return (
+              <Chip
+                key={id}
+                label={count > 0 ? `${trackById(id).name} ${count}` : trackById(id).name}
+                scale={k}
+                wide
+                active={hud.myVote === id}
+                onClick={() => menu.vote(id)}
+              />
+            )
+          })}
+        </Row>
+
         <Row label="MODE" scale={k}>
           <Chip label="SOLO" scale={k} active={hud.mode === 'solo'} onClick={() => menu.setMode('solo')} />
           <Chip
@@ -455,6 +491,7 @@ function RaceBar() {
 function RacePanel() {
   return (
     <UiEntity uiTransform={{ flexDirection: 'column', padding: 10 }} uiBackground={{ color: PANEL }}>
+      <Label value={trackById(hud.track).name} fontSize={13} color={Color4.Gray()} />
       <Label value={`LAP ${Math.min(hud.lap + 1, hud.laps)} / ${hud.laps}`} fontSize={20} color={Color4.White()} />
       <Label value={`POS ${hud.rank} / ${Math.max(hud.drivers, 1)}`} fontSize={16} color={Color4.White()} />
       <Label value={`CP ${hud.checkpoint} / ${hud.checkpoints}`} fontSize={15} color={ACCENT} />
@@ -484,6 +521,7 @@ function RacePanel() {
 function Minimap() {
   const next = hud.nextCheckpoint
   const extent = activeTrack().extent
+  const plate = MINIMAPS[hud.track]
   // The label sits to the right of the marker, except near the right edge, where it would
   // run off the plate and be clipped.
   const nextLeft = next ? (next.x / extent) * MAP_SIZE : 0
@@ -492,7 +530,9 @@ function Minimap() {
   return (
     <UiEntity
       uiTransform={{ width: MAP_SIZE, height: MAP_SIZE, margin: { right: 8 } }}
-      uiBackground={{ texture: { src: 'images/minimap.png' }, textureMode: 'stretch' }}
+      uiBackground={
+        plate !== undefined ? { texture: { src: plate }, textureMode: 'stretch' } : { color: PANEL }
+      }
     >
       {next ? (
         <UiEntity
