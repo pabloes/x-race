@@ -9,15 +9,17 @@ mano ni se descarga). Contrato: `docs/contracts/kit.md`.
 /Applications/Blender.app/Contents/MacOS/Blender -b -P scene/tools/kit/build.py -- --theme city
 ```
 
-Unos 30 s en un M1 Pro (`--no-renders` lo deja en unos 10 s). Sale con código distinto de 0 si
-alguna pieza incumple el contrato: medidas, pivote, triángulos, materiales o transparencias.
+Unos 30 s en un M1 Pro (`--no-renders` lo deja en unos 5 s). Sale con código distinto de 0 si
+alguna pieza incumple el contrato: medidas, pivote, triángulos, materiales, transparencias o una
+imagen de más de 512 px.
 
 Salida:
 
-- `scene/models/kit/<tema>/<pieza>.glb` y `manifest.json` (`{ pieza: { size: {x,y,z}, tris, materials } }`,
-  medido leyendo cada GLB ya exportado).
+- `scene/models/kit/<tema>/<pieza>.glb` y `manifest.json`
+  (`{ pieza: { size: {x,y,z}, tris, materials, texture: {w,h}, emissive } }`, medido leyendo cada
+  GLB ya exportado).
 - `scene/tools/kit/renders/<tema>/`: una vista por pieza, `lineup.jpg`, `lineup-buildings.jpg`,
-  `compo-chase.jpg` y `compo-overview.jpg` (30 m de recta decorados), más los dos atlas en PNG.
+  `compo-chase.jpg` y `compo-overview.jpg` (30 m de recta decorados).
   Los renders se hacen importando los GLB exportados, así que también prueban la ida y vuelta.
 
 `python3 scene/tools/kit/glb.py scene/models/kit/city/*.glb` revisa los GLB sin Blender.
@@ -29,7 +31,7 @@ Salida:
 | `build.py` | Entrada: construye las piezas, empaqueta y pinta el atlas, exporta, comprueba y renderiza |
 | `pieces.py` | Geometría de cada pieza y los pintores de sus texturas; `SPEC` guarda las medidas del contrato |
 | `geo.py` | Primitivas (caja biselada, prisma de perfil, cilindro, copa facetada) y la proyección UV al atlas |
-| `atlas.py` | Atlas de 2048 px: empaquetador, lienzo numpy, fuente de trazos para los rótulos |
+| `atlas.py` | Textura de cada pieza: empaquetador, lienzo numpy, fuente de trazos para los rótulos |
 | `themes.py` | Paletas por tema: color de cada rol y, en `glow`, su emisivo |
 | `glb.py` | Lector de GLB: triángulos, materiales, caja, alfa |
 | `render.py` | Renders de comprobación (Eevee, luz de día) |
@@ -38,11 +40,14 @@ Salida:
 
 - Metros, pivote en el suelo y centrado en X y Z, +Z al frente, +X a la derecha de la pieza.
   En Blender eso es frente = −Y y derecha = −X; sin `MIRROR_X` (igual que el coche).
-- Un único material por tema (`kit_city`) con atlas de color y atlas emisivo, opaco y de una cara.
-  Todas las piezas comparten atlas y material.
-- Los colores planos muestrean el centro de una muestra de 64 px y los rótulos (cuadros, franjas,
-  ventanas, público) se proyectan en su baldosa con borde replicado, para que el mipmapping no
-  mezcle vecinos.
+- Un material por pieza (`kit_city`), opaco y de una cara, con su propia textura pequeña: solo
+  las baldosas y colores que usa, en un lienzo potencia de dos de 512 px como mucho (`TEX_EDGE` en
+  `pieces.py` baja las piezas sencillas a 64 o 128). El explorador decodifica las imágenes de cada
+  GLB por separado, así que un atlas común metido en cada pieza se cargaría 21 veces.
+- Color en JPEG; emisivo en PNG y solo si la pieza brilla (puertas, farola, placa, pilar, ventanas
+  de los edificios).
+- Las baldosas se repintan a la escala que quepa (los pintores trabajan en proporciones del
+  lienzo), con borde replicado; los colores planos muestrean el centro de una muestra de 16 px.
 
 ## Notas para la colocación (`decor.ts`)
 
@@ -61,8 +66,8 @@ Salida:
 
 ## Presupuesto actual (city)
 
-21 piezas, 2592 triángulos en total (máximo 172 por pieza), 1 material. Cada GLB pesa unos
-480 KB porque lleva dentro el atlas (JPEG); el kit entero pesa unos 9,8 MB.
+21 piezas, 2592 triángulos en total (máximo 172 por pieza), 1 material por pieza. Texturas de
+64 × 64 a 512 × 512; el kit entero pesa 0,48 MB.
 
 ## Tema neon (T7)
 

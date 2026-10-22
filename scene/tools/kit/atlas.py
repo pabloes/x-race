@@ -1,7 +1,11 @@
-"""Procedural texture atlas: packer, canvas painter and a stroke font.
+"""Procedural textures: per-piece packer, canvas painter and a stroke font.
 
 Everything is painted with numpy in sRGB floats, top-left origin (row 0 = top), and flipped
-when written into a Blender image. Two images share one layout: colour and emissive. A paint
+when written into a Blender image. Each piece gets its own small texture (at most 512 px) holding
+only the tiles and flat colours it uses, because the explorer decodes every GLB's images on
+their own: a shared 2048 atlas embedded in each piece would be loaded once per piece. Painters
+take their size from the canvas, so a tile is simply repainted at whatever scale fits. Two
+images share one layout: colour and emissive. A paint
 operation names a theme role, so the same painter gives a matt city tile or a glowing neon one
 depending on whether the theme lists that role under `glow`.
 """
@@ -9,9 +13,11 @@ import math
 
 import numpy as np
 
-SIZE = 2048
-GUTTER = 4          # edge-replicated border around every tile, so bilinear/mip sampling never reaches a neighbour
-SWATCH = 64         # flat colours sit in 64 px blocks; faces sample their centre, so bleeding only starts at mip 6
+GUTTER = 2          # edge-replicated border around every tile, so bilinear sampling never reaches a neighbour
+SWATCH = 16         # flat colours sit in 16 px blocks and faces sample their centre
+# Power-of-two canvases a piece's texture may use, smallest first.
+CANVASES = [(64, 64), (128, 64), (64, 128), (128, 128), (256, 128), (128, 256), (256, 256),
+            (512, 256), (256, 512), (512, 512)]
 
 
 def hexrgb(h):
@@ -191,33 +197,37 @@ def text_mask(text, max_w, max_h, italic=0.22):
 
 # ----------------------------------------------------------------------------- packer
 class Atlas:
-    """Shelf packer for named tiles plus flat swatches; owns the two painted images."""
+    """Shelf packer for one piece's tiles (scaled by `scale`) plus its flat swatches."""
 
-    def __init__(self, theme, size=SIZE):
-        self.T, self.size = theme, size
+    def __init__(self, theme, w, h, scale):
+        self.T, self.w, self.h, self.scale = theme, w, h, scale
         self.rects = {}
 
     def pack(self, tiles, swatches):
-        """tiles: {name: (w, h, painter)}; swatches: iterable of role keys."""
-        reqs = [(n, w, h) for n, (w, h, _) in tiles.items()] + [("sw:" + k, SWATCH - 2 * GUTTER, SWATCH - 2 * GUTTER) for k in sorted(swatches)]
+        """tiles: {name: (w, h, painter)} at full size; returns False if it doesn't fit."""
+        s = self.scale
+        reqs = [(n, max(4, int(round(w * s))), max(4, int(round(h * s)))) for n, (w, h, _) in tiles.items()]
+        reqs += [("sw:" + k, SWATCH - 2 * GUTTER, SWATCH - 2 * GUTTER) for k in sorted(swatches)]
         reqs.sort(key=lambda r: (-r[2], -r[1], r[0]))
         x = y = shelf = 0
+        self.rects = {}
         for name, w, h in reqs:
             W, H = w + 2 * GUTTER, h + 2 * GUTTER
-            if x + W > self.size:
+            if x + W > self.w:
                 x, y, shelf = 0, y + shelf, 0
-            if y + H > self.size or W > self.size:
-                raise RuntimeError(f"atlas {self.size}px full at '{name}' ({w}x{h})")
+            if y + H > self.h or W > self.w:
+                return False
             self.rects[name] = (x + GUTTER, y + GUTTER, w, h)
             x += W
             shelf = max(shelf, H)
-        self.used = (y + shelf) / self.size
-        self.tiles, self.swatches = tiles, list(swatches)
+        self.tiles, self.swatches = tiles, sorted(swatches)
+        return True
 
     def paint(self):
-        rgb = np.zeros((self.size, self.size, 3), np.float32)
+        rgb = np.zeros((self.h, self.w, 3), np.float32)
         emit = np.zeros_like(rgb)
-        for name, (w, h, painter) in self.tiles.items():
+        for name, (_, _, painter) in self.tiles.items():
+            _, _, w, h = self.rects[name]
             c = Canvas(self.T, w, h)
             painter(c)
             self._put(rgb, emit, name, c.rgb, c.emit)
@@ -241,4 +251,34 @@ class Atlas:
         s, t = min(max(s, 0.0), 1.0), min(max(t, 0.0), 1.0)
         px = x + 0.5 + s * (w - 1)
         py = y + 0.5 + (1 - t) * (h - 1)
-        return px / self.size, 1 - py / self.size
+        return px / self.w, 1 - py / self.h
+
+
+def fit(theme, tiles, swatches, max_edge, good=0.5):
+    """Smallest canvas (edge <= max_edge) whose tile scale reaches `good`, or the best scale on offer.
+
+    Scale is relative to the tile sizes the pieces ask for, which are their ideal resolution.
+    """
+    options = []
+    for w, h in CANVASES:
+        if max(w, h) > max_edge:
+            continue
+        lo, hi = 0.0, 1.0
+        if not Atlas(theme, w, h, 0.02).pack(tiles, swatches):
+            continue
+        for _ in range(14):                 # binary search on the largest scale that packs
+            mid = (lo + hi) / 2
+            if Atlas(theme, w, h, mid).pack(tiles, swatches):
+                lo = mid
+            else:
+                hi = mid
+        if Atlas(theme, w, h, 1.0).pack(tiles, swatches):
+            lo = 1.0
+        options.append((w, h, lo))
+    if not options:
+        raise RuntimeError(f"no canvas up to {max_edge}px holds {sorted(tiles)} + {len(swatches)} swatches")
+    target = min(good, max(o[2] for o in options) - 1e-6)
+    w, h, sc = min((o for o in options if o[2] >= target), key=lambda o: (o[0] * o[1], -o[2]))
+    a = Atlas(theme, w, h, sc)
+    a.pack(tiles, swatches)
+    return a

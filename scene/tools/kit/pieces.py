@@ -17,6 +17,10 @@ SPEC = {
     "pad": (6, 0.1, 6), "pillar": (2, 6, 2),
 }
 LOOSE = {"tree-a": 0.6, "tree-b": 0.6}     # the contract says "≈" for trees
+# Largest texture edge per piece. Flat-patterned pieces get by with 128 (stripes and gradients
+# survive any scale); text, crowd and facades need room. Anything not listed may use 512.
+TEX_EDGE = {"barrier": 128, "kerb": 128, "pillar": 128, "tree-a": 64, "tree-b": 64, "lamp": 64,
+            "banner": 256, "chevron": 256, "pad": 256}
 FOOTPRINTS, HEIGHTS = (20, 28, 36), (12, 24, 36)
 for _w in FOOTPRINTS:
     for _h in HEIGHTS:
@@ -232,9 +236,10 @@ def paint_crowd(c):
     T = c.T
     rng = random.Random(7)
     rows = TIERS - 1
-    rh = c.h // rows
     ppm = c.w / 12.0
     for r in range(rows):
+        top, bottom = round(r * c.h / rows), round((r + 1) * c.h / rows)
+        rh = bottom - top
         row = Canvas(T, c.w, rh)
         row.fill("seat")
         y_bot = rh
@@ -255,7 +260,7 @@ def paint_crowd(c):
             x += rng.uniform(0.48, 0.62) * ppm
         row.rect(0, y_bot - rh * 0.1, c.w, y_bot, "seat_")
         row.shade_v(0.9, 1.0)
-        c.rgb[r * rh:(r + 1) * rh] = row.rgb
+        c.rgb[top:bottom] = row.rgb
 
 
 def paint_board(c):

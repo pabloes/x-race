@@ -1,15 +1,17 @@
-"""Headless build of a scenery kit: pieces -> atlas -> GLBs -> checks -> manifest -> renders.
+"""Headless build of a scenery kit: pieces -> per-piece textures -> GLBs -> checks -> manifest -> renders.
 
   /Applications/Blender.app/Contents/MacOS/Blender -b -P scene/tools/kit/build.py -- --theme city [--no-renders]
 
-Writes scene/models/kit/<theme>/<piece>.glb + manifest.json, and check renders plus the two
-atlas images to scene/tools/kit/renders/<theme>/. Exits non-zero if any piece breaks the
-contract (size, triangle budget, material count, transparency).
+Writes scene/models/kit/<theme>/<piece>.glb + manifest.json, and check renders to
+scene/tools/kit/renders/<theme>/. Exits non-zero if any piece breaks the contract (size,
+triangle budget, material count, transparency, texture size).
 """
 import argparse
 import json
 import os
+import shutil
 import sys
+import tempfile
 import time
 import traceback
 
@@ -27,6 +29,9 @@ from themes import THEMES  # noqa: E402
 SCENE_DIR = os.path.abspath(os.path.join(HERE, "..", ".."))
 MAX_TRIS, MAX_TRIS_BUILDING, MAX_MATERIALS = 600, 400, 3
 SIZE_TOL = 0.02
+MAX_TEX = 512
+JPEG_QUALITY = 85
+GLOW_EPS = 1.0 / 255
 
 
 def parse():
@@ -37,20 +42,22 @@ def parse():
     return ap.parse_args(argv)
 
 
-def save_image(name, arr, path):
-    """numpy (top-left origin, sRGB floats) -> PNG on disk, reloaded so the exporter sees a file image."""
+def save_image(name, arr, path, quality=0):
+    """numpy (top-left origin, sRGB floats) -> PNG/JPEG on disk (by extension), reloaded so the
+    exporter finds a file image and, with export_image_format AUTO, keeps its format."""
     h, w, _ = arr.shape
     img = bpy.data.images.new(name, w, h, alpha=False)
     rgba = np.concatenate([np.flipud(arr), np.ones((h, w, 1), np.float32)], axis=2)
     img.pixels.foreach_set(rgba.ravel())
     img.filepath_raw = path
-    img.file_format = "PNG"
-    img.save()
+    img.file_format = "JPEG" if path.endswith(".jpg") else "PNG"
+    img.save(quality=quality)
     bpy.data.images.remove(img)
     return bpy.data.images.load(path)
 
 
 def make_material(theme, color_img, emit_img):
+    """One opaque, single-sided material; the emissive map only where the piece glows."""
     m = bpy.data.materials.new(f"kit_{theme}")
     m.use_nodes = True
     m.use_backface_culling = True          # exported as doubleSided: false
@@ -60,12 +67,30 @@ def make_material(theme, color_img, emit_img):
     bsdf.inputs["Metallic"].default_value = 0.0
     tc = nt.nodes.new("ShaderNodeTexImage")
     tc.image = color_img
-    te = nt.nodes.new("ShaderNodeTexImage")
-    te.image = emit_img
     nt.links.new(tc.outputs["Color"], bsdf.inputs["Base Color"])
-    nt.links.new(te.outputs["Color"], bsdf.inputs["Emission Color"])
-    bsdf.inputs["Emission Strength"].default_value = 1.0
+    if emit_img is not None:
+        te = nt.nodes.new("ShaderNodeTexImage")
+        te.image = emit_img
+        nt.links.new(te.outputs["Color"], bsdf.inputs["Emission Color"])
+        bsdf.inputs["Emission Strength"].default_value = 1.0
+    else:
+        bsdf.inputs["Emission Strength"].default_value = 0.0
     return m
+
+
+def texture_piece(piece, K, theme, tmp):
+    """Pack and paint the tiles and swatches this piece uses into its own small texture."""
+    used = piece.paints()
+    tiles = {pa.name: K.tiles[pa.name] for pa in used if isinstance(pa, P.Tile)}
+    swatches = {pa.key for pa in used if isinstance(pa, P.Swatch)}
+    edge = P.TEX_EDGE.get(piece.name, MAX_TEX)
+    atlas = A.fit(theme, tiles, swatches, edge)
+    rgb, emit = atlas.paint()
+    color = save_image(piece.name + "_color", rgb, os.path.join(tmp, piece.name + ".jpg"), JPEG_QUALITY)
+    glow = None
+    if emit.max() > GLOW_EPS:
+        glow = save_image(piece.name + "_emissive", emit, os.path.join(tmp, piece.name + "-emissive.png"))
+    return atlas, make_material(theme.name, color, glow)
 
 
 def export_piece(piece, atlas, material, path):
@@ -78,9 +103,12 @@ def export_piece(piece, atlas, material, path):
     bpy.ops.export_scene.gltf(
         filepath=path, export_format="GLB", use_selection=True, export_yup=True, export_apply=True,
         export_cameras=False, export_lights=False, export_extras=False, export_animations=False,
-        export_image_format="JPEG", export_jpeg_quality=85)
+        export_image_format="AUTO")
     bpy.data.objects.remove(ob)
     bpy.data.meshes.remove(me)
+    for img in {n.image for n in material.node_tree.nodes if n.type == "TEX_IMAGE"}:
+        bpy.data.images.remove(img)
+    bpy.data.materials.remove(material)
 
 
 def check(name, info):
@@ -98,6 +126,8 @@ def check(name, info):
         errors.append(f"{info['tris']} tris > {limit}")
     if info["materials"] > MAX_MATERIALS:
         errors.append(f"{info['materials']} materials > {MAX_MATERIALS}")
+    if info["tex_max"] > MAX_TEX:
+        errors.append(f"embedded image {info['tex_max']}px > {MAX_TEX}")
     if info["alpha"] != ["OPAQUE"]:
         errors.append(f"alpha {info['alpha']}")
     return errors
@@ -120,29 +150,24 @@ def main():
     os.makedirs(ren_dir, exist_ok=True)
     for p in built:
         p.recentre()
-    swatches = {pa.key for p in built for pa in p.paints() if isinstance(pa, P.Swatch)}
-    atlas = A.Atlas(theme)
-    atlas.pack(K.tiles, swatches)
-    rgb, emit = atlas.paint()
-    print(f"[kit] {len(built)} pieces, {len(K.tiles)} tiles + {len(swatches)} swatches, atlas {atlas.used:.0%} used, {time.time() - t0:.1f}s", flush=True)
-
-    color_img = save_image(f"kit_{a.theme}_color", rgb, os.path.join(ren_dir, "atlas-color.png"))
-    emit_img = save_image(f"kit_{a.theme}_emissive", emit, os.path.join(ren_dir, "atlas-emissive.png"))
-    material = make_material(a.theme, color_img, emit_img)
-
+    tmp = tempfile.mkdtemp(prefix=f"kit-{a.theme}-")
     manifest, failures, report = {}, [], []
     for p in built:
         path = os.path.join(out_dir, p.name + ".glb")
+        atlas, material = texture_piece(p, K, theme, tmp)
         export_piece(p, atlas, material, path)
         info = glb.inspect(path)
         errs = check(p.name, info)
         if errs:
             failures.append(f"{p.name}: {'; '.join(errs)}")
-        manifest[p.name] = {"size": info["size"], "tris": info["tris"], "materials": info["materials"]}
+        manifest[p.name] = {"size": info["size"], "tris": info["tris"], "materials": info["materials"],
+                            "texture": info["texture"], "emissive": info["emissive"]}
         report.append((p.name, info))
         print(f"[kit] {p.name:22s} {info['tris']:4d} tris {info['materials']} mat "
-              f"{info['size']['x']:6.2f} x {info['size']['y']:5.2f} x {info['size']['z']:6.2f}  {info['bytes'] / 1024:6.1f} KB"
+              f"{info['size']['x']:6.2f} x {info['size']['y']:5.2f} x {info['size']['z']:6.2f}  "
+              f"tex {info['texture']['w']}x{info['texture']['h']}{' +glow' if info['emissive'] else '      '}  {info['bytes'] / 1024:6.1f} KB"
               f"{'  !! ' + '; '.join(errs) if errs else ''}", flush=True)
+    shutil.rmtree(tmp, ignore_errors=True)
     with open(os.path.join(out_dir, "manifest.json"), "w") as f:
         json.dump(manifest, f, indent=2, sort_keys=True)
         f.write("\n")

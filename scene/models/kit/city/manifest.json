@@ -1,190 +1,295 @@
 {
   "banner": {
+    "emissive": false,
     "materials": 1,
     "size": {
       "x": 0.4,
       "y": 6,
       "z": 1.2
     },
+    "texture": {
+      "h": 256,
+      "w": 128
+    },
     "tris": 94
   },
   "barrier": {
+    "emissive": false,
     "materials": 1,
     "size": {
       "x": 4,
       "y": 1,
       "z": 0.4
     },
+    "texture": {
+      "h": 64,
+      "w": 128
+    },
     "tris": 98
   },
   "building-20x20x12": {
+    "emissive": true,
     "materials": 1,
     "size": {
       "x": 20,
       "y": 12,
       "z": 20
+    },
+    "texture": {
+      "h": 128,
+      "w": 256
     },
     "tris": 150
   },
   "building-20x20x24": {
+    "emissive": true,
     "materials": 1,
     "size": {
       "x": 20,
       "y": 24,
       "z": 20
+    },
+    "texture": {
+      "h": 256,
+      "w": 256
     },
     "tris": 150
   },
   "building-20x20x36": {
+    "emissive": true,
     "materials": 1,
     "size": {
       "x": 20,
       "y": 36,
       "z": 20
     },
+    "texture": {
+      "h": 256,
+      "w": 256
+    },
     "tris": 150
   },
   "building-28x28x12": {
+    "emissive": true,
     "materials": 1,
     "size": {
       "x": 28,
       "y": 12,
       "z": 28
+    },
+    "texture": {
+      "h": 128,
+      "w": 256
     },
     "tris": 150
   },
   "building-28x28x24": {
+    "emissive": true,
     "materials": 1,
     "size": {
       "x": 28,
       "y": 24,
       "z": 28
     },
+    "texture": {
+      "h": 256,
+      "w": 256
+    },
     "tris": 150
   },
   "building-28x28x36": {
+    "emissive": true,
     "materials": 1,
     "size": {
       "x": 28,
       "y": 36,
       "z": 28
     },
+    "texture": {
+      "h": 256,
+      "w": 256
+    },
     "tris": 150
   },
   "building-36x36x12": {
+    "emissive": true,
     "materials": 1,
     "size": {
       "x": 36,
       "y": 12,
       "z": 36
     },
+    "texture": {
+      "h": 256,
+      "w": 512
+    },
     "tris": 150
   },
   "building-36x36x24": {
+    "emissive": true,
     "materials": 1,
     "size": {
       "x": 36,
       "y": 24,
       "z": 36
     },
+    "texture": {
+      "h": 256,
+      "w": 512
+    },
     "tris": 150
   },
   "building-36x36x36": {
+    "emissive": true,
     "materials": 1,
     "size": {
       "x": 36,
       "y": 36,
       "z": 36
     },
+    "texture": {
+      "h": 256,
+      "w": 512
+    },
     "tris": 150
   },
   "chevron": {
+    "emissive": false,
     "materials": 1,
     "size": {
       "x": 2.4,
       "y": 2,
       "z": 0.3
     },
+    "texture": {
+      "h": 256,
+      "w": 256
+    },
     "tris": 84
   },
   "gate-checkpoint": {
+    "emissive": true,
     "materials": 1,
     "size": {
       "x": 19.0,
       "y": 6,
       "z": 1.0
     },
+    "texture": {
+      "h": 256,
+      "w": 512
+    },
     "tris": 128
   },
   "gate-start": {
+    "emissive": true,
     "materials": 1,
     "size": {
       "x": 19.0,
       "y": 7,
       "z": 1.5
     },
+    "texture": {
+      "h": 512,
+      "w": 512
+    },
     "tris": 140
   },
   "kerb": {
+    "emissive": false,
     "materials": 1,
     "size": {
       "x": 6,
       "y": 0.15,
       "z": 0.8
     },
+    "texture": {
+      "h": 64,
+      "w": 128
+    },
     "tris": 18
   },
   "lamp": {
+    "emissive": true,
     "materials": 1,
     "size": {
       "x": 0.6,
       "y": 8,
       "z": 1.6
     },
+    "texture": {
+      "h": 64,
+      "w": 64
+    },
     "tris": 130
   },
   "pad": {
+    "emissive": true,
     "materials": 1,
     "size": {
       "x": 6,
       "y": 0.1,
       "z": 6
     },
+    "texture": {
+      "h": 256,
+      "w": 256
+    },
     "tris": 30
   },
   "pillar": {
+    "emissive": true,
     "materials": 1,
     "size": {
       "x": 2,
       "y": 6,
       "z": 2
     },
+    "texture": {
+      "h": 128,
+      "w": 128
+    },
     "tris": 54
   },
   "stand": {
+    "emissive": false,
     "materials": 1,
     "size": {
       "x": 12,
       "y": 6,
       "z": 6
     },
+    "texture": {
+      "h": 256,
+      "w": 512
+    },
     "tris": 122
   },
   "tree-a": {
+    "emissive": false,
     "materials": 1,
     "size": {
       "x": 4.931,
       "y": 7.036,
       "z": 4.931
     },
+    "texture": {
+      "h": 64,
+      "w": 64
+    },
     "tris": 172
   },
   "tree-b": {
+    "emissive": false,
     "materials": 1,
     "size": {
       "x": 5.149,
       "y": 6.961,
       "z": 4.55
+    },
+    "texture": {
+      "h": 64,
+      "w": 64
     },
     "tris": 172
   }
