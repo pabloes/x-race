@@ -28,7 +28,7 @@ import {
   type Standing,
   type WireInput
 } from '../../../shared/protocol'
-import { TRACK } from '../../../shared/track'
+import { isTrackId, trackById, trackFingerprint } from '../../../shared/tracks'
 import { SnapshotBuffer } from './snapshot-buffer'
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'offline'
@@ -48,10 +48,11 @@ export class Connection {
   playerId = -1
   lastError = ''
   /**
-   * Set when the server's circuit is not the one this build draws. Both sides generate it
-   * from `shared/track.ts` and both are deployed on their own, so a server left running
+   * Set when the server's circuits are not the ones this build draws. Both sides generate
+   * them from `shared/tracks/` and both are deployed on their own, so a server left running
    * from before a change puts the colliders somewhere the client is not drawing them —
-   * invisible walls, ramps that are not there. The id carries a hash of the geometry, so
+   * invisible walls, ramps that are not there. Every circuit carries a hash of its
+   * geometry and the welcome lists them all, because the room can switch to any of them:
    * the mismatch is caught on the welcome instead of being debugged from the driver's seat.
    */
   trackMismatch = false
@@ -231,10 +232,15 @@ export class Connection {
     switch (message.t) {
       case 'welcome':
         this.playerId = message.id
-        this.trackMismatch = message.trackId !== TRACK.id
-        if (this.trackMismatch) {
-          console.error(`[roadster] track mismatch: server has ${message.trackId}, scene has ${TRACK.id}`)
+        this.trackMismatch = false
+        for (const track of message.tracks ?? []) {
+          const ours = isTrackId(track.id) ? trackFingerprint(trackById(track.id)) : 'missing'
+          if (ours === track.fingerprint) continue
+          this.trackMismatch = true
+          console.error(`[roadster] track mismatch on ${track.id}: server ${track.fingerprint}, scene ${ours}`)
         }
+        // An older server sends no list at all, which is a mismatch in itself.
+        if (message.tracks === undefined) this.trackMismatch = true
         // Rough estimate ignoring latency; the first pong refines it a frame later.
         this.clockOffset = message.now - this.lastLocalNow
         this.buffer.setClock(this.clockOffset, this.rtt)

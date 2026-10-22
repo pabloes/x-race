@@ -13,6 +13,7 @@
 
 import { CannonWorld } from './cannon'
 import { initRapier, RapierWorld } from './rapier'
+import type { Track } from '../../../shared/tracks'
 import type { PhysicsWorld } from './types'
 
 export type EngineName = 'rapier' | 'cannon'
@@ -26,8 +27,9 @@ export async function initPhysics(): Promise<void> {
   if (selectedEngine() === 'rapier') await initRapier()
 }
 
-export function createWorld(): PhysicsWorld {
-  return selectedEngine() === 'cannon' ? new CannonWorld() : new RapierWorld()
+/** A world holding `track`'s colliders. A different circuit is a different world. */
+export function createWorld(track: Track): PhysicsWorld {
+  return selectedEngine() === 'cannon' ? new CannonWorld(track) : new RapierWorld(track)
 }
 
 /** The engine's name without building a world for it: every room builds its own. */

@@ -7,7 +7,7 @@
  */
 
 import { quatConjugate, quatFromEulerDegrees, quatRotate, type Vec3 } from '../../shared/math'
-import type { Trigger } from '../../shared/track'
+import type { Trigger } from '../../shared/tracks'
 
 const cache = new WeakMap<Trigger, { inverse: ReturnType<typeof quatFromEulerDegrees> }>()
 

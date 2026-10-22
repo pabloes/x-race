@@ -30,10 +30,9 @@ import {
   type Input,
   type WireInput
 } from '../../shared/protocol'
-import { TRACK } from '../../shared/track'
+import { DEFAULT_TRACK, TRACK_IDS, trackById, type PathPoint } from '../../shared/tracks'
 
 const URL = process.env.SERVER ?? `ws://localhost:${NET.defaultPort}`
-const PATH = TRACK.centreline
 
 class Bot {
   private socket: WebSocket
@@ -46,6 +45,8 @@ class Bot {
   private pingTimer?: NodeJS.Timeout
   private pingId = 1
   private waypoint = 0
+  /** The racing line of whatever circuit the room is on. */
+  private path: PathPoint[] = trackById(DEFAULT_TRACK).centreline
   private me: CarState | null = null
   private bits = 0
 
@@ -106,6 +107,11 @@ class Bot {
         this.id = message.id
         this.clockOffset = message.now - Date.now()
         this.stats.joined = true
+        // The full id carries the geometry hash, so a server on another build of the
+        // circuit is caught here rather than as a bot that drives into a field.
+        const current = TRACK_IDS.find((id) => trackById(id).id === message.trackId)
+        if (current === undefined) this.stats.error = `server runs track ${message.trackId}, not one of ours`
+        else this.path = trackById(current).centreline
         break
       }
       case 's': {
@@ -157,7 +163,7 @@ class Bot {
     if (!car) return
     const inverse = quatConjugate(car.rot)
     const toLocal = (i: number) => {
-      const t = PATH[i % PATH.length]
+      const t = this.path[i % this.path.length].pos
       return quatRotate(inverse, { x: t.x - car.pos.x, y: t.y - car.pos.y, z: t.z - car.pos.z })
     }
     for (let step = 0; step < 3; step++) {

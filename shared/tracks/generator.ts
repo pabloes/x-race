@@ -1,5 +1,5 @@
 /**
- * The track, authored once and consumed by both sides:
+ * Turns a `TrackDefinition` into a `Track`, authored once and consumed by both sides:
  *  - the server turns every `Surface` / `Obstacle` into a Rapier collider
  *  - the scene turns the same list into boxes with MeshRenderer + MeshCollider
  *
@@ -9,7 +9,7 @@
  * ## How the layout is authored
  *
  * Not as hand-placed straights and corners — that only works for a rectangle. The lap is a
- * closed polygon of corner vertices (`SHAPE`), and each vertex is rounded off with a
+ * closed polygon of corner vertices (`shape`), and each vertex is rounded off with a
  * tangent arc of its own radius, the way a real circuit is drawn. Two things fall out for
  * free: the loop always closes, because the polygon does, and every straight is exactly the
  * gap left between two arcs. Move a vertex and the whole circuit re-flows around it.
@@ -17,76 +17,23 @@
  * `fillet()` fails loudly if a corner's radius is too big for the straights feeding it,
  * which is the one way this kind of layout goes wrong silently.
  *
- * ## The circuit
- *
- * A GP-style stadium bowl in the spirit of Cheste: counter-clockwise, one long main
- * straight, a fast opening sweep, a technical infield and a long final left that loads the
- * car onto the straight. It is not a surveyed copy of Ricardo Tormo — the proportions are
- * ours and the stunt sections have no business being on a MotoGP track — but the character
- * is the same: 14 corners, mostly left, and a lap you learn in sectors.
- *
- * Driving direction is counter-clockwise on the map (+X is right, +Z is up), so the main
- * straight runs +X along the south edge.
+ * Everything here is a pure function of the definition: no `Math.random`, no module
+ * state. Server and scene each run it on their own machine and have to agree to the metre.
  */
 
-import { CAR } from './constants'
-import { quatFromEulerDegrees, quatRotate, type Vec3 } from './math'
-
-/** Euler angles in degrees, same convention as Decentraland's Quaternion.fromEulerDegrees. */
-export type Euler = [number, number, number]
-
-export type SurfaceKind = 'ground' | 'road' | 'ramp' | 'ceiling' | 'wall' | 'startline' | 'building'
-
-export type Surface = {
-  kind: SurfaceKind
-  /** Centre of the box. */
-  pos: Vec3
-  /** Full extents (not half-extents). */
-  size: Vec3
-  rot: Euler
-  friction: number
-}
-
-export type Obstacle = {
-  kind: 'pillar' | 'block'
-  pos: Vec3
-  size: Vec3
-  rot: Euler
-}
-
-export type TriggerKind = 'checkpoint' | 'boost' | 'invert'
-
-export type Trigger = {
-  id: string
-  kind: TriggerKind
-  /** Lap order for checkpoints; undefined for the rest. */
-  index?: number
-  pos: Vec3
-  size: Vec3
-  rot: Euler
-}
-
-export type Spawn = { pos: Vec3; yaw: number }
-
-export type Track = {
-  id: string
-  /** Scene size in metres (square). */
-  extent: number
-  /** Lap distance along the centreline, in metres. */
-  lapLength: number
-  surfaces: Surface[]
-  obstacles: Obstacle[]
-  triggers: Trigger[]
-  spawns: Spawn[]
-  checkpointCount: number
-  /**
-   * The racing line, roughly one point every few metres, at the height a car's chassis
-   * sits. It follows the ceiling run in 3D, so a point's index is a much finer measure of
-   * race progress than the checkpoints, and it gives the bots and the test harness
-   * something to drive.
-   */
-  centreline: Vec3[]
-}
+import { BUILDING_CATALOG, CAR, RACE } from '../constants'
+import { quatFromEulerDegrees, quatRotate, type Vec3 } from '../math'
+import type {
+  Euler,
+  FeatureKind,
+  Obstacle,
+  Spawn,
+  Surface,
+  SurfaceKind,
+  Track,
+  TrackDefinition,
+  Trigger
+} from './types'
 
 // --- Layout constants -------------------------------------------------------
 
@@ -117,35 +64,11 @@ const CEILING_EXIT_Y = 5
 const CHECKPOINT_COUNT = 12
 
 /**
- * The lap, as corner apexes in driving order. `r` is the radius the apex is rounded to:
- * big numbers are flat-out sweeps, small ones are the slow corners you brake for.
- *
- * Sector 1 is the main straight and the fast run up the east side, sector 2 the infield,
- * sector 3 the long left that feeds the straight again.
- */
-const SHAPE: { x: number; z: number; r: number; name: string }[] = [
-  { x: 358, z: 58, r: 46, name: 'T1' },
-  { x: 404, z: 140, r: 38, name: 'T2' },
-  { x: 396, z: 243, r: 46, name: 'T3' },
-  { x: 336, z: 314, r: 34, name: 'T4' },
-  { x: 268, z: 316, r: 30, name: 'T5' },
-  { x: 236, z: 396, r: 26, name: 'T6' },
-  { x: 166, z: 404, r: 32, name: 'T7' },
-  { x: 108, z: 339, r: 26, name: 'T8' },
-  { x: 132, z: 260, r: 24, name: 'T9' },
-  { x: 192, z: 234, r: 22, name: 'T10' },
-  { x: 218, z: 174, r: 26, name: 'T11' },
-  { x: 150, z: 135, r: 28, name: 'T12' },
-  { x: 92, z: 214, r: 28, name: 'T13' },
-  { x: 62, z: 64, r: 42, name: 'T14' }
-]
-
-/**
  * Features are assigned by how long a straight turns out to be, not by index: the longest
  * straight is the main straight and gets the line and the grid, the next one is long enough
  * for the flip, the one after that takes the jump. Move a corner and they follow.
  */
-type Feature = 'start' | 'start-jump' | 'jump' | 'ceiling'
+type Feature = FeatureKind
 /**
  * The launch ramp, sized from the car rather than by eye: a 15 degree ramp at top speed
  * throws the Roadster about 45 m, and the landing hill is put exactly there.
@@ -161,42 +84,37 @@ const CEILING_SPAN = 70
 /** Road either side of a feature, so nothing starts in the middle of a corner exit. */
 const FEATURE_MARGIN = 26
 
+/**
+ * Metres of straight each feature needs, margins included: a feature only goes on a
+ * straight longer than this. The start needs room for the grid behind the line.
+ */
+const SPAN: Partial<Record<Feature, number>> = {
+  start: 60,
+  'start-jump': 200,
+  jump: JUMP_SPAN + 12,
+  ceiling: CEILING_SPAN + 12
+}
+
 /** Clear space kept between the circuit and the parcel edge. */
 const MARGIN = 54
 
 /**
- * SHAPE and the building lists are authored in their own space; this scales that design
- * uniformly into the scene and centres it, so the only number that decides how big the
- * circuit is is EXTENT. Uniform, because a non-uniform fit would turn the round corners
- * into ovals the arcs cannot follow.
+ * The shape is authored in its own space; this scales that design uniformly into the
+ * scene and centres it, so the only number that decides how big the circuit is is
+ * EXTENT. Uniform, because a non-uniform fit would turn the round corners into ovals the
+ * arcs cannot follow.
  */
-let fitCache: { scale: number; dx: number; dz: number } | null = null
-
-function fit(): { scale: number; dx: number; dz: number } {
-  if (fitCache) return fitCache
-  const xs = SHAPE.map((v) => v.x)
-  const zs = SHAPE.map((v) => v.z)
+function fitted(def: TrackDefinition): { x: number; z: number; r: number; name: string }[] {
+  const xs = def.shape.map((v) => v.x)
+  const zs = def.shape.map((v) => v.z)
   const minX = Math.min(...xs)
   const maxX = Math.max(...xs)
   const minZ = Math.min(...zs)
   const maxZ = Math.max(...zs)
-  const scale = (EXTENT - 2 * MARGIN) / Math.max(maxX - minX, maxZ - minZ)
-  fitCache = {
-    scale,
-    dx: EXTENT / 2 - ((minX + maxX) / 2) * scale,
-    dz: EXTENT / 2 - ((minZ + maxZ) / 2) * scale
-  }
-  return fitCache
-}
-
-const fitScale = (): number => fit().scale
-const toScene = (p: { x: number; z: number }): P2 => ({
-  x: p.x * fit().scale + fit().dx,
-  z: p.z * fit().scale + fit().dz
-})
-
-function fitted(): { x: number; z: number; r: number; name: string }[] {
-  return SHAPE.map((v) => ({ ...toScene(v), r: v.r * fit().scale, name: v.name }))
+  const k = (EXTENT - 2 * MARGIN) / Math.max(maxX - minX, maxZ - minZ)
+  const dx = EXTENT / 2 - ((minX + maxX) / 2) * k
+  const dz = EXTENT / 2 - ((minZ + maxZ) / 2) * k
+  return def.shape.map((v) => ({ x: v.x * k + dx, z: v.z * k + dz, r: v.r * k, name: v.name }))
 }
 
 // --- Small vector helpers ---------------------------------------------------
@@ -319,9 +237,22 @@ function arcTangent(a: Arc, t: number): P2 {
 
 // --- The circuit ------------------------------------------------------------
 
-type PathPoint = { pos: Vec3; dir: P2; distance: number }
+/** A racing line sample while the lap is walked; `distance` is metres from the line. */
+type Sample = { pos: Vec3; dir: P2; distance: number }
 
-function buildTrack(): Track {
+export function buildTrack(def: TrackDefinition): Track {
+  if (def.shape.some((v) => (v.y ?? 0) !== 0)) {
+    throw new Error(`track ${def.id}: vertex heights are not built by the generator yet`)
+  }
+  if (def.intro && def.intro.length > 0) {
+    // The flyover runs against the server's `intro` phase, so a list that does not fill it
+    // either cuts off mid-shot or leaves the camera parked before the countdown.
+    const seconds = def.intro.reduce((total, shot) => total + shot.seconds, 0)
+    if (Math.abs(seconds - RACE.introMs / 1000) > 0.5) {
+      throw new Error(`track ${def.id}: intro lasts ${seconds} s, the intro phase ${RACE.introMs / 1000} s`)
+    }
+  }
+
   const surfaces: Surface[] = []
   const obstacles: Obstacle[] = []
   const triggers: Trigger[] = []
@@ -353,7 +284,7 @@ function buildTrack(): Track {
   }
 
   // 1. Fit the authored shape to the scene, then round every corner of it.
-  const shape = fitted()
+  const shape = fitted(def)
   const n = shape.length
   const arcs: Arc[] = shape.map((v, i) =>
     fillet(shape[(i - 1 + n) % n], v, shape[(i + 1) % n], v.r, v.name)
@@ -374,7 +305,7 @@ function buildTrack(): Track {
     }
   }
   if (tooTight.length > 0) {
-    throw new Error(`track: corners do not fit:\n  ${tooTight.join('\n  ')}`)
+    throw new Error(`track ${def.id}: corners do not fit:\n  ${tooTight.join('\n  ')}`)
   }
 
   // 2. Rank the straights: longest is the main straight, then the flip, then the jump.
@@ -385,18 +316,12 @@ function buildTrack(): Track {
     length: len(sub(arcs[(i + 1) % n].entry, a.exit))
   }))
   const byLength = [...straights].sort((a, b) => b.length - a.length)
-  const feature = new Map<number, Feature>()
-  // The main straight carries the line, the grid and — if it is long enough — the launch
-  // ramp, which sits well before the grid so a standing start never has to climb it.
-  feature.set(byLength[0].index, byLength[0].length > 200 ? 'start-jump' : 'start')
-  // The flip goes on the next longest straight that can actually hold it.
-  const flip = byLength.slice(1).find((s) => s.length > CEILING_SPAN + 12)
-  if (flip) feature.set(flip.index, 'ceiling')
+  const feature = assignFeatures(def, byLength)
   // Boost pads go on the next longest straights, where they are worth taking.
   const boostOn = new Set(byLength.slice(3, 6).map((s) => s.index))
 
   // 3. Walk the lap, emitting geometry and sampling the racing line as we go.
-  const path: PathPoint[] = []
+  const path: Sample[] = []
   let distance = 0
   const sample = (pos: Vec3, dir: P2, at: number) => {
     path.push({ pos, dir, distance: at })
@@ -448,7 +373,7 @@ function buildTrack(): Track {
   // 4. Checkpoints, evenly spaced round the lap, plus one inside the ceiling run so the
   //    inverted section cannot be skipped by staying on the road underneath it.
   const lapLength = distance
-  const pointAt = (d: number): PathPoint => {
+  const pointAt = (d: number): Sample => {
     const wrapped = ((d % lapLength) + lapLength) % lapLength
     let best = path[0]
     for (const p of path) {
@@ -497,7 +422,14 @@ function buildTrack(): Track {
   surfaces.push(...scatterBuildings(path))
 
   const track: Track = {
-    id: 'elon-roadster-race-circuit',
+    id: def.id,
+    base: def.id,
+    name: def.name,
+    theme: def.theme,
+    laps: def.laps,
+    // A definition without shots gets the generic flyover from the cinematics module,
+    // which builds it from this same Track once that module is in.
+    intro: def.intro ?? [],
     extent: EXTENT,
     lapLength,
     surfaces,
@@ -505,9 +437,48 @@ function buildTrack(): Track {
     triggers,
     spawns,
     checkpointCount: CHECKPOINT_COUNT,
-    centreline: path.map((p) => p.pos)
+    centreline: path.map((p) => ({ pos: p.pos, dir: { x: p.dir.x, y: 0, z: p.dir.z } }))
   }
-  return { ...track, id: `${track.id}-${fingerprint(track)}` }
+  return { ...track, id: `${def.id}-${fingerprint(track)}` }
+}
+
+/**
+ * Which straight gets which feature, keyed by the index of the corner it leaves.
+ *
+ * The start always takes the longest straight: it is the main straight, and the grid and
+ * the line need the room. Everything else, in the definition's order, takes the longest
+ * straight still free that is longer than its span. A feature asked for that does not fit
+ * is an error, not a circuit quietly built without it; only the default list (no
+ * `features` in the definition) treats the flip as optional, as it always has.
+ */
+function assignFeatures(
+  def: TrackDefinition,
+  byLength: { index: number; length: number }[]
+): Map<number, Feature> {
+  const main = byLength[0]
+  const optional = def.features === undefined
+  const wanted: Feature[] = def.features ?? [
+    main.length > SPAN['start-jump']! ? 'start-jump' : 'start',
+    'ceiling'
+  ]
+  const start = wanted.filter((f) => f === 'start' || f === 'start-jump')
+  if (start.length !== 1) throw new Error(`track ${def.id}: needs exactly one of 'start' or 'start-jump'`)
+
+  const feature = new Map<number, Feature>()
+  const fail = (kind: Feature): never => {
+    throw new Error(`track ${def.id}: no straight left is long enough for '${kind}'`)
+  }
+  if (main.length <= SPAN[start[0]]!) fail(start[0])
+  feature.set(main.index, start[0])
+  for (const kind of wanted) {
+    if (kind === 'start' || kind === 'start-jump') continue
+    const span = SPAN[kind]
+    if (span === undefined) throw new Error(`track ${def.id}: the generator does not build '${kind}' yet`)
+    const straight = byLength.find((s) => !feature.has(s.index) && s.length > span)
+    if (straight) feature.set(straight.index, kind)
+    else if (!optional) fail(kind)
+  }
+  return feature
 }
 
 /**
@@ -535,10 +506,23 @@ function fingerprint(track: Track): string {
     mix(s.rot[0])
     mix(s.rot[1])
   }
+  for (const o of track.obstacles) {
+    mix(o.pos.x)
+    mix(o.pos.y)
+    mix(o.pos.z)
+    mix(o.size.x)
+    mix(o.size.y)
+    mix(o.size.z)
+  }
   for (const t of track.triggers) {
     mix(t.pos.x)
     mix(t.pos.z)
     mix(t.size.x)
+  }
+  for (const s of track.spawns) {
+    mix(s.pos.x)
+    mix(s.pos.z)
+    mix(s.yaw)
   }
   mix(track.lapLength)
   return (hash >>> 0).toString(36)
@@ -714,7 +698,7 @@ function buildGrid(from: P2, to: P2): Spawn[] {
  * run this code on their own machine and have to agree on the result down to the metre, or
  * the car would be driving through a wall the server can see and the player cannot.
  */
-function scatterBuildings(path: PathPoint[]): Surface[] {
+function scatterBuildings(path: Sample[]): Surface[] {
   const out: Surface[] = []
   const step = 46
   // xorshift: cheap, deterministic, and good enough to look unplanned.
@@ -730,9 +714,11 @@ function scatterBuildings(path: PathPoint[]): Surface[] {
     for (let z = step * 0.6; z < EXTENT; z += step) {
       const cx = x + (rand() - 0.5) * 14
       const cz = z + (rand() - 0.5) * 14
-      const w = 20 + rand() * 16
-      const d = 20 + rand() * 16
-      const h = 9 + rand() * 30
+      // The plot is still drawn at random, then the block is the biggest catalogue piece
+      // that fits on it, so the collider is exactly the GLB the scene puts there.
+      const w = fromCatalogue(BUILDING_CATALOG.footprints, Math.min(20 + rand() * 16, 20 + rand() * 16))
+      const d = w
+      const h = fromCatalogue(BUILDING_CATALOG.heights, 9 + rand() * 30)
       if (cx - w / 2 < 2 || cx + w / 2 > EXTENT - 2) continue
       if (cz - d / 2 < 2 || cz + d / 2 > EXTENT - 2) continue
       // Keep a car's width of air between the building and the widest part of the road.
@@ -750,18 +736,29 @@ function scatterBuildings(path: PathPoint[]): Surface[] {
   return out
 }
 
-export const TRACK: Track = buildTrack()
+/** The largest size in `sizes` (ascending) not above `room`; the smallest if none is. */
+function fromCatalogue(sizes: readonly number[], room: number): number {
+  let best = sizes[0]
+  for (const size of sizes) if (size <= room) best = size
+  return best
+}
 
-export const CHECKPOINTS: Trigger[] = TRACK.triggers
-  .filter((t) => t.kind === 'checkpoint')
-  .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+/** The checkpoints in lap order. Callers that run every tick keep the result. */
+export function checkpointsOf(track: Track): Trigger[] {
+  return track.triggers
+    .filter((t) => t.kind === 'checkpoint')
+    .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+}
 
 /**
  * Where a car is put back after falling off or flipping: just before the checkpoint it is
  * heading for, on the ground. A checkpoint inside the ceiling run would otherwise drop the
  * car back in upside down nine metres up, which only ends one way.
  */
-const RESPAWNS: Spawn[] = CHECKPOINTS.map((cp) => {
+export function respawnFor(track: Track, checkpointIndex: number): Spawn {
+  const checkpoints = checkpointsOf(track)
+  const n = checkpoints.length
+  const cp = checkpoints[((checkpointIndex % n) + n) % n]
   const yaw = cp.rot[1]
   const rad = (yaw * Math.PI) / 180
   // Back up 10 m along the direction the checkpoint faces.
@@ -769,11 +766,6 @@ const RESPAWNS: Spawn[] = CHECKPOINTS.map((cp) => {
     pos: { x: cp.pos.x - Math.sin(rad) * 10, y: RIDE_HEIGHT, z: cp.pos.z - Math.cos(rad) * 10 },
     yaw
   }
-})
-
-export function respawnFor(checkpointIndex: number): Spawn {
-  const n = RESPAWNS.length
-  return RESPAWNS[((checkpointIndex % n) + n) % n]
 }
 
 /**
@@ -812,16 +804,16 @@ function segmentDistanceSq(p: Vec3, a: Vec3, b: Vec3): number {
  * the point itself: the line is sampled every few metres, and a car sitting between two
  * samples is up to half that spacing further from the nearest point than from the line.
  */
-export function lineOffset(pos: Vec3, hint: number): { distance: number; index: number } {
-  const path = TRACK.centreline
+export function lineOffset(track: Track, pos: Vec3, hint: number): { distance: number; index: number } {
+  const path = track.centreline
   const n = path.length
   const window = 12
   let best = -1
   let bestSq = Infinity
   const consider = (i: number): void => {
     const index = ((i % n) + n) % n
-    const dx = path[index].x - pos.x
-    const dz = path[index].z - pos.z
+    const dx = path[index].pos.x - pos.x
+    const dz = path[index].pos.z - pos.z
     const d = dx * dx + dz * dz
     if (d < bestSq) {
       bestSq = d
@@ -837,11 +829,11 @@ export function lineOffset(pos: Vec3, hint: number): { distance: number; index: 
     bestSq = Infinity
     for (let i = 0; i < n; i++) consider(i)
   }
-  const previous = path[(best - 1 + n) % n]
-  const next = path[(best + 1) % n]
+  const previous = path[(best - 1 + n) % n].pos
+  const next = path[(best + 1) % n].pos
   const distanceSq = Math.min(
-    segmentDistanceSq(pos, previous, path[best]),
-    segmentDistanceSq(pos, path[best], next)
+    segmentDistanceSq(pos, previous, path[best].pos),
+    segmentDistanceSq(pos, path[best].pos, next)
   )
   return { distance: Math.sqrt(distanceSq), index: best }
 }

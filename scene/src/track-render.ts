@@ -1,7 +1,10 @@
 /**
- * Builds the visible circuit from the same `TRACK` data the server turns into colliders,
+ * Builds the visible circuit from the same `Track` data the server turns into colliders,
  * so what you see is exactly what the physics uses. Every piece is a scaled box: no
  * glTF assets are needed and the scene loads instantly.
+ *
+ * When the room switches circuit the whole thing is torn down with `clearTrack()` and
+ * built again from the new one; the decoration kit hooks into the same two calls.
  *
  * Decentraland colliders are added only to the drivable surfaces, which lets a player on
  * foot walk the circuit while they are not driving. The parcel-wide `ground` surface is
@@ -19,7 +22,7 @@ import {
   Transform
 } from '@dcl/sdk/ecs'
 import { Color4, Quaternion } from '@dcl/sdk/math'
-import { TRACK, type Surface, type SurfaceKind } from '../../shared/track'
+import type { Surface, SurfaceKind, Track } from '../../shared/tracks'
 
 /** Metres of ground covered by one repeat of the gravel texture. */
 const GRAVEL_TILE = 4
@@ -49,8 +52,17 @@ const FACADES = [
 /** Surfaces a car drives on also get a collider so an avatar on foot can walk them. */
 const WALKABLE: SurfaceKind[] = ['road', 'ramp', 'startline']
 
-function spawnSurface(surface: Surface, index: number): Entity {
+/** Every entity the current circuit is drawn with, so it can be taken down in one go. */
+let built: Entity[] = []
+
+function addEntity(): Entity {
   const entity = engine.addEntity()
+  built.push(entity)
+  return entity
+}
+
+function spawnSurface(surface: Surface, index: number): Entity {
+  const entity = addEntity()
   Transform.create(entity, {
     position: surface.pos,
     scale: surface.size,
@@ -86,12 +98,12 @@ function spawnSurface(surface: Surface, index: number): Entity {
  * centimetre above the ground collider, which is itself a centimetre below the asphalt,
  * so the road slabs still read as slabs with an edge.
  */
-function buildGround(): void {
-  const entity = engine.addEntity()
-  const repeats = TRACK.extent / GRAVEL_TILE
+function buildGround(track: Track): void {
+  const entity = addEntity()
+  const repeats = track.extent / GRAVEL_TILE
   Transform.create(entity, {
-    position: { x: TRACK.extent / 2, y: 0.01, z: TRACK.extent / 2 },
-    scale: { x: TRACK.extent, y: TRACK.extent, z: 1 },
+    position: { x: track.extent / 2, y: 0.01, z: track.extent / 2 },
+    scale: { x: track.extent, y: track.extent, z: 1 },
     rotation: Quaternion.fromEulerDegrees(90, 0, 0)
   })
   // A plane's uvs are given per face, front then back; scaling them past 1 is what tiles
@@ -108,16 +120,16 @@ function buildGround(): void {
   })
 }
 
-export function buildTrack(): void {
-  buildGround()
+export function buildTrack(track: Track): void {
+  buildGround(track)
   let index = 0
-  for (const surface of TRACK.surfaces) {
+  for (const surface of track.surfaces) {
     if (surface.kind === 'ground') continue
     spawnSurface(surface, index++)
   }
 
-  for (const obstacle of TRACK.obstacles) {
-    const entity = engine.addEntity()
+  for (const obstacle of track.obstacles) {
+    const entity = addEntity()
     Transform.create(entity, {
       position: obstacle.pos,
       scale: obstacle.size,
@@ -134,9 +146,9 @@ export function buildTrack(): void {
   }
 
   // Boost pads: flat glowing plates. No collider — the server owns the trigger.
-  for (const trigger of TRACK.triggers) {
+  for (const trigger of track.triggers) {
     if (trigger.kind !== 'boost') continue
-    const entity = engine.addEntity()
+    const entity = addEntity()
     Transform.create(entity, {
       position: { x: trigger.pos.x, y: 0.16, z: trigger.pos.z },
       scale: { x: trigger.size.x, y: 0.08, z: trigger.size.z },
@@ -152,7 +164,7 @@ export function buildTrack(): void {
 
   // Checkpoint gates: two uprights per checkpoint, so the racing line is readable from
   // the car without drawing a solid wall across the track.
-  for (const trigger of TRACK.triggers) {
+  for (const trigger of track.triggers) {
     if (trigger.kind !== 'checkpoint') continue
     const yaw = trigger.rot[1]
     const rad = (yaw * Math.PI) / 180
@@ -161,7 +173,7 @@ export function buildTrack(): void {
     const acrossX = Math.cos(rad) * half
     const acrossZ = -Math.sin(rad) * half
     for (const side of [-1, 1]) {
-      const post = engine.addEntity()
+      const post = addEntity()
       Transform.create(post, {
         position: {
           x: trigger.pos.x + acrossX * side,
@@ -179,4 +191,10 @@ export function buildTrack(): void {
       })
     }
   }
+}
+
+/** Removes everything `buildTrack` drew, ready for another circuit. */
+export function clearTrack(): void {
+  for (const entity of built) engine.removeEntity(entity)
+  built = []
 }

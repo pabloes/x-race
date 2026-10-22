@@ -14,7 +14,7 @@
  */
 
 import type { RaceMode } from '../../shared/protocol'
-import { createWorld } from './physics'
+import { DEFAULT_TRACK, trackById } from '../../shared/tracks'
 import { Room, type Connection } from './room'
 import type { RaceRecord } from './stats'
 
@@ -31,7 +31,7 @@ export class Rooms {
   }
 
   private build(mode: RaceMode): Room {
-    const room = new Room(createWorld())
+    const room = new Room(trackById(DEFAULT_TRACK))
     room.onMode(mode)
     room.onRaceFinished = this.onRaceFinished
     return room

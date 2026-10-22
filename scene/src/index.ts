@@ -16,8 +16,8 @@ import { engine } from '@dcl/sdk/ecs'
 import { SNAPSHOT_RATE, TICK_RATE } from '../../shared/constants'
 import { vlen } from '../../shared/math'
 import { CarFlag, InputBit, type GameEvent, type PlayerInfo, type Standing } from '../../shared/protocol'
+import { activeCheckpoints, activeTrack } from './active-track'
 import { cheer, forgetMissing, updateCarAudio } from './audio'
-import { CHECKPOINTS } from '../../shared/track'
 import { carRoot, dropMissing, parkCar, renderCar, setDriverNames } from './car'
 import { updateSkidmarks } from './skidmarks'
 import { detach, follow } from './camera'
@@ -152,11 +152,12 @@ function renderSystem(dt: number): void {
     hud.checkpoint = mine.cp + 1
     // Checkpoints are mandatory and in order, so "next" is simply the one after the last
     // one taken, wrapping back to the start line at the end of a lap.
-    const next = (mine.cp + 1) % CHECKPOINTS.length
+    const checkpoints = activeCheckpoints()
+    const next = (mine.cp + 1) % checkpoints.length
     hud.nextCheckpoint = {
-      x: CHECKPOINTS[next].pos.x,
-      z: CHECKPOINTS[next].pos.z,
-      label: `${next + 1}/${CHECKPOINTS.length}`
+      x: checkpoints[next].pos.x,
+      z: checkpoints[next].pos.z,
+      label: `${next + 1}/${checkpoints.length}`
     }
   } else {
     detach()
@@ -217,7 +218,7 @@ function hudSystem(dt: number): void {
 export function main(): void {
   // Asked once: it decides whether the on-screen driving controls exist at all.
   void detectPlatform()
-  buildTrack()
+  buildTrack(activeTrack())
   // A Roadster parked on the gravel beside the grid, where the avatar arrives (the
   // `paddock` spawn point in scene.json), nose towards the newcomer. On the gravel plane,
   // which sits a centimetre up, so the wheels rest on it rather than in it.

@@ -8,6 +8,7 @@
  */
 
 import type { Quat, Vec3 } from './math'
+import type { TrackId } from './tracks/types'
 
 // --- Input ------------------------------------------------------------------
 
@@ -237,7 +238,10 @@ export type ServerMessage =
       tick: number
       /** Server clock in ms, the reference for all snapshot timestamps. */
       now: number
+      /** Full id, fingerprint included, of the circuit the room is on right now. */
       trackId: string
+      /** Every circuit the server can switch to, for the client to check against its own. */
+      tracks: { id: TrackId; fingerprint: string }[]
       tickRate: number
       snapshotRate: number
       players: PlayerInfo[]

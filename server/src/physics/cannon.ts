@@ -25,7 +25,7 @@
 import * as CANNON from 'cannon-es'
 import { CAR, GRAVITY, TICK_DT } from '../../../shared/constants'
 import { quatFromEulerDegrees, type Quat, type Vec3 } from '../../../shared/math'
-import { TRACK } from '../../../shared/track'
+import type { Track } from '../../../shared/tracks'
 import type { PhysicsWorld, Vehicle, WheelState } from './types'
 
 /**
@@ -243,17 +243,17 @@ export class CannonWorld implements PhysicsWorld {
   private readonly world: CANNON.World
   private readonly vehicles: CannonVehicle[] = []
 
-  constructor() {
+  constructor(track: Track) {
     this.world = new CANNON.World({ gravity: new CANNON.Vec3(0, GRAVITY, 0) })
     // Sweep and prune: the track is hundreds of static boxes that never move, which is
     // the case the naive broadphase is worst at.
     this.world.broadphase = new CANNON.SAPBroadphase(this.world)
     this.world.defaultContactMaterial.friction = 0.6
     this.world.defaultContactMaterial.restitution = 0.05
-    this.buildTrack()
+    this.buildTrack(track)
   }
 
-  private buildTrack(): void {
+  private buildTrack(track: Track): void {
     const add = (pos: Vec3, size: Vec3, rot: [number, number, number], friction: number) => {
       const q = quatFromEulerDegrees(rot[0], rot[1], rot[2])
       const body = new CANNON.Body({
@@ -265,8 +265,8 @@ export class CannonWorld implements PhysicsWorld {
       })
       this.world.addBody(body)
     }
-    for (const s of TRACK.surfaces) add(s.pos, s.size, s.rot, s.friction)
-    for (const o of TRACK.obstacles) add(o.pos, o.size, o.rot, 0.6)
+    for (const s of track.surfaces) add(s.pos, s.size, s.rot, s.friction)
+    for (const o of track.obstacles) add(o.pos, o.size, o.rot, 0.6)
   }
 
   createVehicle(pos: Vec3, yaw: number): Vehicle {

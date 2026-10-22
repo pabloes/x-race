@@ -27,7 +27,7 @@ import {
   TICKS_PER_SNAPSHOT,
   TICK_RATE
 } from '../../shared/constants'
-import { CHECKPOINTS, TRACK } from '../../shared/track'
+import { checkpointsOf, TRACK_IDS, trackById, trackFingerprint, type Track, type Trigger } from '../../shared/tracks'
 import {
   encodeCar,
   type GameEvent,
@@ -41,6 +41,7 @@ import {
 } from '../../shared/protocol'
 import { BOT_SKILLS, BotDriver } from './bot-driver'
 import { CarSim } from './car-sim'
+import { createWorld } from './physics'
 import type { PhysicsWorld } from './physics/types'
 import type { RaceRecord } from './stats'
 
@@ -158,7 +159,16 @@ export class Room {
    */
   private joinWindowEndsMs = 0
 
-  constructor(private readonly world: PhysicsWorld) {}
+  /** The circuit this room races on, its physics world, and its checkpoints in order. */
+  private track: Track
+  private world: PhysicsWorld
+  private checkpoints: Trigger[]
+
+  constructor(track: Track) {
+    this.track = track
+    this.world = createWorld(track)
+    this.checkpoints = checkpointsOf(track)
+  }
 
   get playerCount(): number {
     return this.players.size
@@ -189,8 +199,8 @@ export class Room {
   join(name: string, connection: Connection, nowMs: number, address?: string): Player | null {
     if (this.players.size >= RACE.maxPlayers) return null
     const id = this.nextId++
-    const spawn = TRACK.spawns[this.racerCount() % TRACK.spawns.length]
-    const car = new CarSim(id, name, this.world.createVehicle(spawn.pos, spawn.yaw), spawn)
+    const spawn = this.track.spawns[this.racerCount() % this.track.spawns.length]
+    const car = new CarSim(id, name, this.world.createVehicle(spawn.pos, spawn.yaw), spawn, this.track)
     car.lapStartMs = nowMs
     // The door opens for the first arrival into an empty room, not for each one: later
     // arrivals join the window already running.
@@ -210,7 +220,8 @@ export class Room {
       id,
       tick: this.tick,
       now: nowMs,
-      trackId: TRACK.id,
+      trackId: this.track.id,
+      tracks: TRACK_IDS.map((track) => ({ id: track, fingerprint: trackFingerprint(trackById(track)) })),
       tickRate: TICK_RATE,
       snapshotRate: TICK_RATE / TICKS_PER_SNAPSHOT,
       players: this.playerInfos()
@@ -340,18 +351,18 @@ export class Room {
   private setBotCount(count: number): void {
     this.botCount = count
     while (this.bots.size > count) this.removeLastBot()
-    while (this.bots.size < count && this.racerCount() < TRACK.spawns.length) {
+    while (this.bots.size < count && this.racerCount() < this.track.spawns.length) {
       const id = this.nextId++
-      const spawn = TRACK.spawns[this.racerCount() % TRACK.spawns.length]
+      const spawn = this.track.spawns[this.racerCount() % this.track.spawns.length]
       const index = this.bots.size
       const name = `BOT ${index + 1}`
-      const car = new CarSim(id, name, this.world.createVehicle(spawn.pos, spawn.yaw), spawn)
+      const car = new CarSim(id, name, this.world.createVehicle(spawn.pos, spawn.yaw), spawn, this.track)
       this.bots.set(id, {
         id,
         name,
         car,
         connection: null,
-        driver: new BotDriver(BOT_SKILLS[index % BOT_SKILLS.length])
+        driver: new BotDriver(BOT_SKILLS[index % BOT_SKILLS.length], this.track.centreline)
       })
       this.events.push({ t: 'join', id, name })
     }
@@ -370,7 +381,7 @@ export class Room {
 
   /** Drops bots that no longer fit once a human takes a grid slot. */
   private trimBots(): void {
-    while (this.racerCount() > TRACK.spawns.length && this.bots.size > 0) this.removeLastBot()
+    while (this.racerCount() > this.track.spawns.length && this.bots.size > 0) this.removeLastBot()
   }
 
   // --- Tick ----------------------------------------------------------------
@@ -539,7 +550,7 @@ export class Room {
   private resetGrid(nowMs: number): void {
     let slot = 0
     for (const racer of this.racers()) {
-      const spawn = TRACK.spawns[slot % TRACK.spawns.length]
+      const spawn = this.track.spawns[slot % this.track.spawns.length]
       racer.car.resetForRace(spawn, nowMs)
       racer.driver?.reset()
       slot++
@@ -566,7 +577,7 @@ export class Room {
   }
 
   private distanceToNextCheckpoint(racer: Racer): number {
-    const next = CHECKPOINTS[(racer.car.cp + 1) % CHECKPOINTS.length]
+    const next = this.checkpoints[(racer.car.cp + 1) % this.checkpoints.length]
     const p = racer.car.vehicle.position()
     return Math.hypot(next.pos.x - p.x, next.pos.y - p.y, next.pos.z - p.z)
   }

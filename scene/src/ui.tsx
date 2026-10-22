@@ -19,8 +19,8 @@ import ReactEcs, { Label, ReactEcsRenderer, UiEntity } from '@dcl/sdk/react-ecs'
 import { engine, UiCanvasInformation } from '@dcl/sdk/ecs'
 import { Color4 } from '@dcl/sdk/math'
 import { CHARGE, RACE } from '../../shared/constants'
-import { TRACK } from '../../shared/track'
 import { CarFlag, formatTime, type RaceMode, type RacePhase, type Standing } from '../../shared/protocol'
+import { activeTrack } from './active-track'
 import { touch } from './input'
 import { isMobile } from './platform'
 
@@ -168,7 +168,7 @@ export const hud: HudState = {
   lap: 0,
   laps: RACE.laps,
   checkpoint: 0,
-  checkpoints: TRACK.checkpointCount,
+  checkpoints: activeTrack().checkpointCount,
   rank: 1,
   drivers: 0,
   speedKmh: 0,
@@ -483,10 +483,11 @@ function RacePanel() {
  */
 function Minimap() {
   const next = hud.nextCheckpoint
+  const extent = activeTrack().extent
   // The label sits to the right of the marker, except near the right edge, where it would
   // run off the plate and be clipped.
-  const nextLeft = next ? (next.x / TRACK.extent) * MAP_SIZE : 0
-  const nextTop = next ? ((TRACK.extent - next.z) / TRACK.extent) * MAP_SIZE : 0
+  const nextLeft = next ? (next.x / extent) * MAP_SIZE : 0
+  const nextTop = next ? ((extent - next.z) / extent) * MAP_SIZE : 0
   const labelOnLeft = nextLeft > MAP_SIZE * 0.62
   return (
     <UiEntity
@@ -526,8 +527,8 @@ function Minimap() {
             uiTransform={{
               positionType: 'absolute',
               position: {
-                left: (blip.x / TRACK.extent) * MAP_SIZE - size / 2,
-                top: ((TRACK.extent - blip.z) / TRACK.extent) * MAP_SIZE - size / 2
+                left: (blip.x / extent) * MAP_SIZE - size / 2,
+                top: ((extent - blip.z) / extent) * MAP_SIZE - size / 2
               },
               width: size,
               height: size
