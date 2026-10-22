@@ -50,8 +50,11 @@ export type TrackDefinition = {
    * longest straight, a jump on it if it is long enough, the flip on the next one).
    */
   features?: FeatureKind[]
-  /** Flyover for the `intro` phase. Missing: the generic one built from the track. */
-  intro?: Shot[]
+  /**
+   * Flyover for the `intro` phase, or a function that reads it off the built track (shots
+   * placed on the features, see `intros/`). Missing: `defaultIntro`, built from the track.
+   */
+  intro?: Shot[] | ((track: Track) => Shot[])
 }
 
 export type SurfaceKind = 'ground' | 'road' | 'ramp' | 'ceiling' | 'wall' | 'startline' | 'building'

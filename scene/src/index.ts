@@ -154,10 +154,10 @@ function renderSystem(dt: number): void {
   }
 
   const mine = cars.get(connection.playerId)
-  // Cinematic hook. While the room's phase is 'intro', the flyover owns the camera:
-  // `playIntro(activeTrack(), RACE.introMs - race.phaseMs)` from scene/src/cinematic.ts goes
-  // here, in place of `follow`, unless the player has skipped it. The phase and its clock
-  // are `connection.buffer.latestRace()`, the same snapshot the HUD reads.
+  // Cinematic hook. While the room's phase is 'intro' the flyover owns the camera, in
+  // place of `follow`/`detach`: with scene/src/cinematic.ts merged, `introElapsedMs(race
+  // phase, phaseMs, dt)` and then `playIntro(activeTrack(), activeTrack().intro, elapsed)`,
+  // reading `connection.buffer.latestRace()` like the HUD does.
   if (mine) {
     follow(mine, dt)
     hud.speedKmh = vlen(mine.vel) * 3.6 * SPEEDO_EXAGGERATION

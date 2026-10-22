@@ -398,6 +398,8 @@ export const BUILDING_CATALOG = {
 
 export const RACE = {
   laps: 3,
+  /** Length of the pre-race cinematic phase; every circuit's shots add up to this. */
+  introMs: 12000,
   /**
    * How long the shared room holds the door open before anyone may start.
    *
@@ -407,8 +409,6 @@ export const RACE = {
    * twenty seconds for yourself is absurd.
    */
   joinWindowMs: 20000,
-  /** The flyover between the lobby and the countdown; the cinematic is timed against it. */
-  introMs: 12000,
   countdownMs: 4000,
   /** Grace period after the winner finishes before the race is force-ended. */
   finishGraceMs: 20000,

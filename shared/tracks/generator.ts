@@ -21,6 +21,7 @@
  * state. Server and scene each run it on their own machine and have to agree to the metre.
  */
 
+import { defaultIntro, validateIntro } from '../cinematic'
 import { BUILDING_CATALOG, CAR, RACE } from '../constants'
 import { quatFromEulerDegrees, quatRotate, type Vec3 } from '../math'
 import type {
@@ -244,15 +245,6 @@ export function buildTrack(def: TrackDefinition): Track {
   if (def.shape.some((v) => (v.y ?? 0) !== 0)) {
     throw new Error(`track ${def.id}: vertex heights are not built by the generator yet`)
   }
-  if (def.intro && def.intro.length > 0) {
-    // The flyover runs against the server's `intro` phase, so a list that does not fill it
-    // either cuts off mid-shot or leaves the camera parked before the countdown.
-    const seconds = def.intro.reduce((total, shot) => total + shot.seconds, 0)
-    if (Math.abs(seconds - RACE.introMs / 1000) > 0.5) {
-      throw new Error(`track ${def.id}: intro lasts ${seconds} s, the intro phase ${RACE.introMs / 1000} s`)
-    }
-  }
-
   const surfaces: Surface[] = []
   const obstacles: Obstacle[] = []
   const triggers: Trigger[] = []
@@ -427,9 +419,7 @@ export function buildTrack(def: TrackDefinition): Track {
     name: def.name,
     theme: def.theme,
     laps: def.laps,
-    // A definition without shots gets the generic flyover from the cinematics module,
-    // which builds it from this same Track once that module is in.
-    intro: def.intro ?? [],
+    intro: [],
     extent: EXTENT,
     lapLength,
     surfaces,
@@ -439,7 +429,12 @@ export function buildTrack(def: TrackDefinition): Track {
     checkpointCount: CHECKPOINT_COUNT,
     centreline: path.map((p) => ({ pos: p.pos, dir: { x: p.dir.x, y: 0, z: p.dir.z } }))
   }
-  return { ...track, id: `${def.id}-${fingerprint(track)}` }
+  // The shots are placed on the built geometry, so they come last. They are not part of
+  // the fingerprint: a camera move does not put a wall where the client cannot see it.
+  const intro =
+    typeof def.intro === 'function' ? def.intro(track) : def.intro ?? defaultIntro(track, RACE.introMs)
+  validateIntro(intro, RACE.introMs)
+  return { ...track, intro, id: `${def.id}-${fingerprint(track)}` }
 }
 
 /**
