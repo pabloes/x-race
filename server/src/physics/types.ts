@@ -56,4 +56,6 @@ export interface PhysicsWorld {
   removeVehicle(v: Vehicle): void
   /** Advances the world by exactly one fixed timestep. */
   step(): void
+  /** Releases the world, vehicles included; a room switching circuit builds a new one. */
+  dispose(): void
 }

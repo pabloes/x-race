@@ -156,7 +156,14 @@ export function decodeCar(w: WireCar): CarState {
 
 // --- Race state -------------------------------------------------------------
 
-export type RacePhase = 'lobby' | 'countdown' | 'racing' | 'finished'
+/**
+ * `intro` sits between the lobby and the countdown: the circuit's flyover, with the cars
+ * already held on the grid. Its `phaseMs` is the clock every client runs the cinematic on.
+ */
+export type RacePhase = 'lobby' | 'intro' | 'countdown' | 'racing' | 'finished'
+
+/** Votes per circuit; circuits nobody voted for are absent. */
+export type VoteCount = Partial<Record<TrackId, number>>
 
 export type RaceState = {
   phase: RacePhase
@@ -170,6 +177,10 @@ export type RaceState = {
   bots: number
   /** True while the join window is open and START is not available yet. */
   joining: boolean
+  /** The circuit the room is on. */
+  track: TrackId
+  /** The lobby's vote so far; empty outside the lobby. */
+  votes: VoteCount
 }
 
 export type Standing = {
@@ -201,6 +212,8 @@ export type GameEvent =
   | { t: 'respawn'; id: number }
   | { t: 'finish'; id: number; rank: number; totalMs: number }
   | { t: 'race-end'; standings: Standing[] }
+  /** The vote was counted at START: the circuit this race is on, and whether a draw decided it. */
+  | { t: 'track'; track: TrackId; votes: VoteCount; tie: boolean }
 
 // --- Messages ---------------------------------------------------------------
 
@@ -227,6 +240,8 @@ export type ClientMessage =
   /** Number of bots the room should field, 0..7. */
   | { t: 'bots'; count: number }
   | { t: 'laps'; laps: number }
+  /** This player's choice of circuit for the next race; replaces their previous one. */
+  | { t: 'vote'; track: TrackId }
   /** Clock sync probe. The server echoes it back as `pong` with its own clock attached. */
   | { t: 'ping'; id: number; clientTime: number }
 

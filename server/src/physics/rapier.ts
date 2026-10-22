@@ -240,4 +240,9 @@ export class RapierWorld implements PhysicsWorld {
   step(): void {
     this.world.step()
   }
+
+  dispose(): void {
+    // The world lives in wasm memory, which the garbage collector cannot see.
+    this.world.free()
+  }
 }

@@ -150,6 +150,9 @@ async function main(): Promise<void> {
         case 'laps':
           room.onLaps(Number(message.laps))
           break
+        case 'vote':
+          room.onVote(playerId, message.track)
+          break
         case 'ping':
           // Clock sync: echo the client's timestamp back with the server clock.
           connection.send({ t: 'pong', id: message.id, clientTime: message.clientTime, serverNow: now() })

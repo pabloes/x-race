@@ -304,4 +304,8 @@ export class CannonWorld implements PhysicsWorld {
   step(): void {
     this.world.step(TICK_DT)
   }
+
+  dispose(): void {
+    // Plain JavaScript objects: dropping the reference is enough.
+  }
 }
