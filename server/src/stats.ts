@@ -6,10 +6,11 @@
  * analytics product, and everything here is answered from memory in a few microseconds so
  * it can never slow a tick down.
  *
- * **It does not survive a restart.** Rooms are in memory, and so is this; a redeploy
- * starts the book again. If `STATS_FILE` is set the roll is written there after each race
- * and read back on boot, which is what makes it survive — and on CapRover that path has
- * to be inside a persistent volume, or the file goes with the container.
+ * **It only survives a restart if it has somewhere to live.** Rooms are in memory, and so
+ * is this; a redeploy starts the book again. If `STATS_FILE` is set the roll is written
+ * there whenever it changes and read back on boot, which is what makes it survive — and
+ * on CapRover that path has to be inside a persistent directory, or the file goes with
+ * the container the next time the app is deployed.
  *
  * A visitor is one wallet. Guests have none, so they are counted together as a single
  * line rather than given invented identities: better an honest "and some guests" than a
@@ -57,6 +58,9 @@ export class Stats {
 
   constructor(private readonly file = process.env.STATS_FILE) {
     this.load()
+    // Write once at boot, so a path that cannot be written says so in the startup log
+    // instead of at the first visitor, hours later, in one line nobody is watching for.
+    if (this.file) this.save()
   }
 
   /** Someone opened the scene. Called once per connection that gets as far as joining. */
@@ -64,6 +68,7 @@ export class Stats {
     const now = Date.now()
     if (!address) {
       this.guestVisits++
+      this.save()
       return
     }
     const key = address.toLowerCase()
@@ -82,6 +87,11 @@ export class Stats {
         races: 0
       })
     }
+    // Written here as well as after a race: a visitor who looks around and leaves without
+    // finishing anything is still a visitor, and waiting for a race to save them means
+    // losing every one of them on a quiet afternoon. Arrivals are human-paced, so this is
+    // a few writes an hour, not a hot path.
+    this.save()
   }
 
   recordRace(record: RaceRecord): void {

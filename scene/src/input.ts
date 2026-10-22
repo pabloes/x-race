@@ -38,7 +38,8 @@ export const touch = {
 
 /** Milliseconds since the scene started, advanced by the caller each frame. */
 let now = 0
-/** When the throttle was last released, for double-tap detection. */
+/** When the throttle was last pressed and last released, for double-tap detection. */
+let pressedAt = -Infinity
 let releasedAt = -Infinity
 let wasThrottle = false
 /** Latched by a second tap, cleared when the throttle is let go. */
@@ -49,8 +50,14 @@ export function readInputBits(dt: number): number {
 
   const throttle = inputSystem.isPressed(InputAction.IA_FORWARD) || touch.throttle
   if (throttle && !wasThrottle) {
-    // A press that follows a release closely enough is the second half of a double tap.
-    if (now - releasedAt <= TRICK.doubleTapMs) boostArmed = true
+    // A double tap is a *tap* and then a press: the one before this has to have been
+    // short as well as recent. Timing only the gap meant that any brief lift of the
+    // throttle re-armed the boost on the way back in — and since letting go is the only
+    // way to end a boost, the boost would not drop until you had stayed off the throttle
+    // for the whole window, which is a long time to coast in the middle of a corner.
+    const tapped = releasedAt - pressedAt <= TRICK.doubleTapMs
+    if (now - releasedAt <= TRICK.doubleTapMs && tapped) boostArmed = true
+    pressedAt = now
   } else if (!throttle && wasThrottle) {
     releasedAt = now
     boostArmed = false
@@ -67,6 +74,19 @@ export function readInputBits(dt: number): number {
   if (inputSystem.isPressed(InputAction.IA_JUMP) || touch.thrust) bits |= InputBit.Thrust
   if (inputSystem.isPressed(InputAction.IA_PRIMARY) || touch.roll) bits |= InputBit.Flip
   return bits
+}
+
+/**
+ * The battery ran dry, so stop asking for boost.
+ *
+ * The latch is the client's: the server only reads the bit, and it drops the boost of its
+ * own accord at an empty bar. Left armed, the request survives the battery, and the next
+ * charge pad or long drift relights the boost mid-corner without the driver having asked
+ * for it again. Clearing it here means a boost always starts with a double tap, which is
+ * also what the dark lamp on the HUD then says.
+ */
+export function dropBoost(): void {
+  boostArmed = false
 }
 
 /** True on the frame the respawn key goes down. */

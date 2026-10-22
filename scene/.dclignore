@@ -1,8 +1,16 @@
-.*
-package.json
-package-lock.json
-tsconfig.json
-node_modules
-*.ts
-*.tsx
-dist
+# What never needs to reach the published scene. The defaults the CLI applies are kept
+# (it merges this list with its own), so this only adds the things that are specific to
+# how this project is built.
+#
+# The generators and the models they are made from are part of the repo, not of the game:
+# shipping them was costing about 3 MB of every deploy and putting a __pycache__ in the
+# content server.
+tools
+tools/**
+**/__pycache__
+**/__pycache__/**
+models/tesla_roadster
+models/tesla_roadster/**
+models/tesla_roadster.glb
+models/flying-*
+*.stl

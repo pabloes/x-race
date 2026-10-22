@@ -328,7 +328,7 @@ export class Room {
 
   onBotCount(count: number): void {
     if (!Number.isFinite(count)) return
-    this.setBotCount(Math.max(0, Math.min(TRACK.spawns.length - 1, Math.floor(count))))
+    this.setBotCount(Math.max(0, Math.min(RACE.maxBots, Math.floor(count))))
   }
 
   onLaps(laps: number): void {

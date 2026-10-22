@@ -11,7 +11,8 @@
  * The HUD also leaves three corners empty, because they are not ours to draw in: the
  * explorer owns the minimap at the top right, its own buttons at the top left and the chat
  * at the bottom left. So the menu is centred at the top, the panels run down the left, the
- * messages sit in the middle, speed is bottom-centre and the connection line bottom-right.
+ * messages sit in the middle, speed is bottom-centre, and the key legend and the
+ * connection box share the bottom-right corner.
  */
 
 import ReactEcs, { Label, ReactEcsRenderer, UiEntity } from '@dcl/sdk/react-ecs'
@@ -45,19 +46,43 @@ const TAB_DESIGN_WIDTH = 150
 const TAB_DESIGN_HEIGHT = 40
 
 /**
+ * The screen this HUD is written for.
+ *
+ * Every size and every font in this file is a pixel of it. `setupUi` hands it to the
+ * renderer as the virtual screen, and from there one factor — the fit of this screen
+ * inside the real canvas — scales the whole HUD, text included, so a panel takes the
+ * same share of a phone, a laptop and a 4K monitor. Making the HUD bigger or smaller
+ * everywhere is a matter of changing these two numbers.
+ *
+ * 16:10 rather than 16:9 on purpose: the renderer rewrites a 16:9 virtual screen to its
+ * own 1600x720 on a phone, and the menu below works its share of the screen out from
+ * these numbers, so they have to be the ones actually in force.
+ */
+const VIRTUAL_WIDTH = 1440
+const VIRTUAL_HEIGHT = 900
+
+/**
  * The menu's size, derived from the canvas.
  *
- * The UI is laid out in pixels, which on a 4K screen is a postage stamp and in a small
- * window is a wall. So the panel is given a share of the screen — a bit over a third of
- * the width, and never so tall that it runs off a short window — and everything inside it
- * is multiplied by `k`, the ratio between that width and the width it was drawn at. The
- * proportions are then fixed by construction rather than by a clamp that happens to look
- * right on one monitor.
+ * `UiCanvasInformation` reports the real canvas in device pixels — 2750 across on a
+ * retina laptop where the UI is laid out 1440 wide — so it has to be put back into the
+ * virtual pixels everything else here is written in before anything is measured against
+ * it. Taking those numbers at face value is what drew this menu at half the width of the
+ * screen, hanging off the right edge and clipped at the bottom.
+ *
+ * The panel is given a share of the screen — a bit over a third of the width, and never
+ * so tall that it runs off a short window — and everything inside it is multiplied by
+ * `k`, the ratio between that width and the width it was drawn at. The proportions are
+ * then fixed by construction rather than by a clamp that happens to look right on one
+ * monitor.
  */
 function menuMetrics(): { width: number; k: number; canvasWidth: number; canvasHeight: number } {
   const canvas = UiCanvasInformation.getOrNull(engine.RootEntity)
-  const canvasWidth = canvas?.width ?? 1280
-  const canvasHeight = canvas?.height ?? 720
+  const deviceWidth = canvas !== null && canvas.width > 0 ? canvas.width : VIRTUAL_WIDTH
+  const deviceHeight = canvas !== null && canvas.height > 0 ? canvas.height : VIRTUAL_HEIGHT
+  const scale = Math.min(deviceWidth / VIRTUAL_WIDTH, deviceHeight / VIRTUAL_HEIGHT)
+  const canvasWidth = deviceWidth / scale
+  const canvasHeight = deviceHeight / scale
   const width = Math.max(300, Math.min(canvasWidth * 0.36, canvasHeight * 0.62))
   return { width, k: width / MENU_DESIGN_WIDTH, canvasWidth, canvasHeight }
 }
@@ -256,7 +281,7 @@ function Row(props: { label: string; scale: number; children?: unknown }) {
  * The menu, in the middle of the screen.
  *
  * It is the thing you look at between races, so it sits where you are already looking
- * rather than along the top edge, and it is sized from the canvas (see `uiScale`) so it
+ * rather than along the top edge, and it is sized from the canvas (see `menuMetrics`) so it
  * keeps its proportions on a phone-sized window and on a 4K monitor.
  *
  * It mirrors the server's room settings rather than holding its own, so two players
@@ -604,7 +629,14 @@ function BoostLed() {
       uiBackground={{ color: PANEL }}
     >
       <UiEntity uiTransform={{ width: 18, height: 18 }} uiBackground={{ color: colour }} />
-      <Label value="BOOST" fontSize={11} color={on || asking ? Color4.White() : Color4.Gray()} />
+      {/* nowrap for the same reason the chips have it: given the chance the renderer
+          breaks this one word across two lines, as "BOOS" and "T", and the lamp grows. */}
+      <Label
+        value="BOOST"
+        fontSize={11}
+        color={on || asking ? Color4.White() : Color4.Gray()}
+        textWrap="nowrap"
+      />
     </UiEntity>
   )
 }
@@ -646,20 +678,43 @@ function SpeedPanel() {
 }
 
 /**
- * How much to scale the control hints by.
+ * How much to scale the control legend by.
  *
- * Tied to the menu's scale but gentler: the hints are a line of text at the edge of the
- * screen, and growing them as fast as the panel would turn them into a headline.
+ * Tied to the menu's scale but gentler: the legend is a block of small text along the
+ * bottom edge, and growing it as fast as the panel would turn it into a headline.
  */
 function hintScale(): number {
   return 1 + (menuMetrics().k - 1) * 0.6
 }
 
-/** Connection and controls, bottom-right so the explorer's chat keeps the bottom-left. */
+/**
+ * A box of a size that never changes, for the connection and the netgraph.
+ *
+ * Every line in here is live: the ping, the frame rate, the snapshot spacing. Drawn as
+ * bare labels the column was as wide as whatever it said this frame, so three digits of
+ * fps dropping to two moved the text, and a line that only appears while something is
+ * being measured moved everything above it. Small movements, constantly, in the corner of
+ * your eye while you are driving — which reads as a HUD that will not sit still.
+ *
+ * So: fixed width, fixed height, stacked from the bottom. The numbers change inside a box
+ * that does not, and the warning line is the one the width is chosen for, since it is by
+ * some way the longest thing the box can be asked to say.
+ */
+const STATUS_WIDTH = 272
+const STATUS_HEIGHT = 78
+
 function StatusLine() {
   return (
     <UiEntity
-      uiTransform={{ flexGrow: 1, flexBasis: 0, flexDirection: 'column', alignItems: 'flex-end' }}
+      uiTransform={{
+        width: STATUS_WIDTH,
+        height: STATUS_HEIGHT,
+        flexDirection: 'column',
+        justifyContent: 'flex-end',
+        alignItems: 'flex-end',
+        padding: 8
+      }}
+      uiBackground={{ color: PANEL }}
     >
       <Label
         value={
@@ -688,22 +743,82 @@ function StatusLine() {
         color={hud.extrapolationMs > 60 || hud.fps < 30 ? WARN : Color4.Gray()}
         textAlign="middle-right"
       />
-      {isMobile() ? null : (
-        <UiEntity uiTransform={{ width: 'auto', flexDirection: 'column', alignItems: 'flex-end' }}>
-          <Label
-            value="WASD drive · WW boost · Space thrusters"
-            fontSize={13 * hintScale()}
-            color={Color4.Gray()}
-            textAlign="middle-right"
-          />
-          <Label
-            value="Shift handbrake · E roll · F respawn"
-            fontSize={13 * hintScale()}
-            color={Color4.Gray()}
-            textAlign="middle-right"
-          />
-        </UiEntity>
-      )}
+    </UiEntity>
+  )
+}
+
+/**
+ * The keyboard, drawn.
+ *
+ * It replaces two lines of grey text that sat in the bottom-right corner among the ping
+ * and the frame counter, where a legend reads as diagnostics and goes unread. A key is
+ * something you press, so it is drawn as a key — a filled cap with the action beside it —
+ * and the block is pinned to the right edge, directly above the connection box, where it
+ * is out of the way of the circuit but still on the screen rather than in a menu.
+ *
+ * Two rows of four rather than one row of eight, and the break is written here rather than
+ * left to `flexWrap`: eight in a line would reach across the middle of the screen, and a
+ * wrap the renderer decides is a wrap that can come out as a squeezed cap instead — the
+ * same way a chip label once came out as "MULT" and "I".
+ *
+ * Nothing here is drawn for a touch explorer; `MobileControls` owns that screen.
+ */
+function ControlsBar() {
+  if (isMobile()) return null
+  const k = hintScale()
+  const cap = (keys: string, action: string) => (
+    <UiEntity
+      key={action}
+      uiTransform={{
+        width: 'auto',
+        height: 'auto',
+        flexDirection: 'row',
+        alignItems: 'center',
+        margin: { left: 3 * k, right: 3 * k, top: 2 * k, bottom: 2 * k }
+      }}
+    >
+      <UiEntity
+        uiTransform={{
+          width: 'auto',
+          height: 'auto',
+          padding: { left: 6 * k, right: 6 * k, top: 2 * k, bottom: 2 * k }
+        }}
+        uiBackground={{ color: Color4.create(1, 1, 1, 0.18) }}
+      >
+        <Label value={keys} fontSize={15 * k} color={Color4.White()} textAlign="middle-center" textWrap="nowrap" />
+      </UiEntity>
+      <Label
+        value={action}
+        fontSize={13 * k}
+        color={Color4.Gray()}
+        textAlign="middle-center"
+        textWrap="nowrap"
+        uiTransform={{ margin: { left: 3 * k } }}
+      />
+    </UiEntity>
+  )
+  const row = (caps: ReactEcs.JSX.Element[], key: string) => (
+    <UiEntity
+      key={key}
+      uiTransform={{ width: 'auto', height: 'auto', flexDirection: 'row', justifyContent: 'center' }}
+    >
+      {caps}
+    </UiEntity>
+  )
+  return (
+    <UiEntity
+      uiTransform={{
+        width: 'auto',
+        height: 'auto',
+        flexDirection: 'column',
+        alignItems: 'center',
+        padding: 4 * k,
+        margin: { bottom: 6 }
+      }}
+      uiBackground={{ color: BAR }}
+    >
+      {row([cap('W', 'THROTTLE'), cap('S', 'BRAKE'), cap('A D', 'STEER'), cap('W W', 'BOOST')], 'drive')}
+      {row([cap('SHIFT', 'HANDBRAKE'), cap('SPACE', 'THRUSTERS'), cap('E', 'ROLL'), cap('F', 'RESPAWN')], 'air')}
     </UiEntity>
   )
 }
@@ -825,12 +940,25 @@ function Hud() {
           <SpeedPanel />
           <BoostLed />
         </UiEntity>
-        <StatusLine />
+        {/* The right-hand column: the keys above, the connection box below, both pinned to
+            the edge of the screen. */}
+        <UiEntity
+          uiTransform={{
+            flexGrow: 1,
+            flexBasis: 0,
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            margin: { left: 10 }
+          }}
+        >
+          <ControlsBar />
+          <StatusLine />
+        </UiEntity>
       </UiEntity>
     </UiEntity>
   )
 }
 
 export function setupUi(): void {
-  ReactEcsRenderer.setUiRenderer(Hud)
+  ReactEcsRenderer.setUiRenderer(Hud, { virtualWidth: VIRTUAL_WIDTH, virtualHeight: VIRTUAL_HEIGHT })
 }

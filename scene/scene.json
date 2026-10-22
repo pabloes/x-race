@@ -1051,26 +1051,26 @@
   },
   "spawnPoints": [
     {
-      "name": "grid",
+      "name": "paddock",
       "default": true,
       "position": {
         "x": [
-          242,
-          263
+          247,
+          250
         ],
         "y": [
           1,
           1
         ],
         "z": [
-          52,
-          62
+          42,
+          46
         ]
       },
       "cameraTarget": {
-        "x": 300,
+        "x": 268,
         "y": 1,
-        "z": 57
+        "z": 54
       }
     }
   ],

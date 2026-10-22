@@ -333,8 +333,13 @@ export const CHARGE = {
    * This is where the charge actually comes from. Coasting pays a trickle, so a lap driven
    * straight and tidy never fills the bar: the thrusters and the boost are paid for with
    * the thing that costs time, which is sliding the car about and throwing it off ramps.
+   *
+   * Read it against the drain: a second of full-angle drift buys about six tenths of a
+   * second of boost, and filling the bar from empty takes some four seconds of sliding.
+   * At 0.45 it took barely two, which paid for more boost than the drift cost to set up —
+   * so the battery was never a decision, it was just full.
    */
-  driftRegenPerSecond: 0.45,
+  driftRegenPerSecond: 0.25,
   /** Drain per second while boosting. */
   drainPerSecond: 0.42,
   /**
@@ -405,7 +410,15 @@ export const RACE = {
   /** A car that falls below this Y is respawned at its last checkpoint. */
   killY: -8,
   respawnDelayMs: 1200,
-  maxPlayers: 8
+  maxPlayers: 8,
+  /**
+   * Most bots a room will field, whatever the menu asks for.
+   *
+   * Below the eight grid slots on purpose: bots are there to give you something to chase,
+   * and every one of them is a full vehicle on the same tick as everybody else. The
+   * ceiling is enforced on the server, because the menu is only a suggestion.
+   */
+  maxBots: 4
 } as const
 
 export const NET = {

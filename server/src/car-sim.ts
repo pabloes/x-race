@@ -16,7 +16,6 @@ import {
   quatMultiply,
   quatNormalize,
   quatRotate,
-  quatSlerp,
   vdot,
   vlen,
   type Quat,
@@ -38,7 +37,9 @@ const INVERT_TRIGGERS = TRACK.triggers.filter((t) => t.kind === 'invert')
 type Trick = {
   name: string
   from: Quat
-  to: Quat
+  /** World-space axis and the full angle to turn about it, held from the first tick. */
+  axis: Vec3
+  radians: number
   elapsed: number
   duration: number
   /** Charge and points granted when it completes. */
@@ -425,10 +426,19 @@ export class CarSim {
       const t = clamp(this.trick.elapsed / this.trick.duration, 0, 1)
       // Ease in/out so the scripted rotation does not start or stop with a jerk.
       const eased = t * t * (3 - 2 * t)
-      v.setRotation(quatSlerp(this.trick.from, this.trick.to, eased))
+      // The angle is ramped and the rotation rebuilt from it each tick, rather than
+      // slerped between a start and an end orientation. Slerp takes the shortest path
+      // between two attitudes, and a barrel roll's end *is* its start: a full turn came
+      // out as no turn at all, so E scored 300 points and the car did not move. Driving
+      // the angle keeps the whole 360° on the screen, and a half turn is unaffected.
+      v.setRotation(
+        quatNormalize(quatMultiply(quatFromAxisAngle(this.trick.axis, this.trick.radians * eased), this.trick.from))
+      )
       v.setAngvel({ x: 0, y: 0, z: 0 })
       if (t >= 1) {
-        v.setRotation(this.trick.to)
+        v.setRotation(
+          quatNormalize(quatMultiply(quatFromAxisAngle(this.trick.axis, this.trick.radians), this.trick.from))
+        )
         this.charge = clamp(this.charge + this.trick.reward, 0, 1)
         if (this.trick.points > 0) {
           this.score += this.trick.points
@@ -556,11 +566,11 @@ export class CarSim {
     reward: number,
     points: number
   ): void {
-    const delta = quatFromAxisAngle(axis, radians)
     this.trick = {
       name,
       from,
-      to: quatNormalize(quatMultiply(delta, from)),
+      axis,
+      radians,
       elapsed: 0,
       duration,
       reward,

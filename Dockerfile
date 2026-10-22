@@ -27,6 +27,13 @@ COPY server/package.json server/package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/server/dist ./dist
 
+# Where the visitor roll survives a redeploy, when `STATS_FILE` points at it and CapRover
+# has a persistent directory mounted here. It is created and handed to `node` at build
+# time on purpose: the process drops to that user below, and Docker gives a fresh named
+# volume the ownership of the directory it covers — without this the mount arrives owned
+# by root, every write is refused, and the only sign is a warning in the log.
+RUN mkdir -p /data && chown node:node /data
+
 # CapRover maps the public domain onto this port; set it as the app's Container HTTP Port.
 ENV PORT=8787
 EXPOSE 8787

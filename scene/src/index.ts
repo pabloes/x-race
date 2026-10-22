@@ -16,13 +16,13 @@ import { engine } from '@dcl/sdk/ecs'
 import { SNAPSHOT_RATE, TICK_RATE } from '../../shared/constants'
 import { vlen } from '../../shared/math'
 import { CarFlag, InputBit, type GameEvent, type PlayerInfo, type Standing } from '../../shared/protocol'
-import { cheer, silenceMissing, updateCarAudio } from './audio'
+import { cheer, forgetMissing, updateCarAudio } from './audio'
 import { CHECKPOINTS } from '../../shared/track'
-import { carRoot, hideMissing, renderCar } from './car'
+import { carRoot, dropMissing, parkCar, renderCar, setDriverNames } from './car'
 import { updateSkidmarks } from './skidmarks'
-import { attachTo, detach } from './camera'
+import { detach, follow } from './camera'
 import { playerIdentity, serverUrl } from './config'
-import { readInputBits, respawnPressed } from './input'
+import { dropBoost, readInputBits, respawnPressed } from './input'
 import { Connection } from './net/connection'
 import { SPIKE_CANNON, startCannonSpike } from './spike-cannon'
 import { detectPlatform } from './platform'
@@ -51,6 +51,7 @@ const connection = new Connection({
     players = list
     const me = list.find((p) => p.id === connection.playerId)
     hud.spectator = me?.spectator === true
+    setDriverNames(list, connection.playerId)
   },
   onStandings: (list) => {
     hud.standings = list
@@ -117,7 +118,7 @@ function netSystem(dt: number): void {
   if (respawnPressed()) connection.requestRespawn()
 }
 
-function renderSystem(): void {
+function renderSystem(dt: number): void {
   // The local car is sampled on a much shorter delay than the rest; see the buffer.
   const cars = connection.buffer.sample(localNow, connection.playerId)
   const braking = (inputBits & (InputBit.Brake | InputBit.Handbrake)) !== 0
@@ -128,8 +129,8 @@ function renderSystem(): void {
     const root = carRoot(car.id)
     if (root !== null) updateCarAudio(car, root, braking && car.id === connection.playerId)
   }
-  hideMissing(cars)
-  silenceMissing(cars)
+  dropMissing(cars)
+  forgetMissing(cars)
 
   hud.blips = []
   for (const [, car] of cars) {
@@ -139,10 +140,11 @@ function renderSystem(): void {
 
   const mine = cars.get(connection.playerId)
   if (mine) {
-    const root = carRoot(mine.id)
-    if (root !== null) attachTo(root)
+    follow(mine, dt)
     hud.speedKmh = vlen(mine.vel) * 3.6 * SPEEDO_EXAGGERATION
     hud.charge = mine.charge
+    // Empty battery: the car has already stopped boosting, so stop asking for it too.
+    if (mine.charge <= 0) dropBoost()
     hud.flags = mine.flags
     hud.lap = mine.lap
     hud.rank = mine.rank
@@ -216,6 +218,10 @@ export function main(): void {
   // Asked once: it decides whether the on-screen driving controls exist at all.
   void detectPlatform()
   buildTrack()
+  // A Roadster parked on the gravel beside the grid, where the avatar arrives (the
+  // `paddock` spawn point in scene.json), nose towards the newcomer. On the gravel plane,
+  // which sits a centimetre up, so the wheels rest on it rather than in it.
+  parkCar({ x: 255.5, y: 0.66, z: 46.5 }, 275)
   // Measurement only, on the cannon-prediction branch: see spike-cannon.ts. Off unless
   // it is being read, because a cannon world stepping in the scene thread is exactly the
   // sort of thing that makes the car feel late while you are trying to judge the car.

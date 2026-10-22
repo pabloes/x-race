@@ -9,8 +9,8 @@
  *
  * Writes are rationed the same way `car.ts` rations visibility: an AudioSource change is a
  * CRDT message to the renderer, so volume and pitch are quantised and only written when
- * they actually move. A car that stops reporting is silenced, not destroyed, matching how
- * the visuals are pooled.
+ * they actually move. A car that stops reporting takes its sources with it, because they
+ * hang off the root the visuals destroy.
  *
  * Braking is the one sound that does not come from a snapshot: there is no brake bit on the
  * wire, and adding one to send a sound effect would be the tail wagging the dog. The local
@@ -178,10 +178,20 @@ function silence(entry: CarAudio): void {
   set(entry.gravel, false)
 }
 
-/** Silences any car that was not in this frame's snapshot (left the race). */
-export function silenceMissing(present: Map<number, SampledCar>): void {
-  for (const [id, entry] of audio) {
-    if (!present.has(id)) silence(entry)
+/**
+ * Forgets any car that was not in this frame's snapshot (left the race).
+ *
+ * The sources themselves are not touched: they are parented to the car's root, so
+ * `dropMissing` in `car.ts` has already destroyed them along with it. All that is left
+ * here is the bookkeeping, and it has to go in the same frame — writing a volume to a
+ * destroyed AudioSource is a write into nothing.
+ */
+export function forgetMissing(present: Map<number, SampledCar>): void {
+  for (const id of audio.keys()) {
+    if (!present.has(id)) audio.delete(id)
+  }
+  for (const id of lineHint.keys()) {
+    if (!present.has(id)) lineHint.delete(id)
   }
 }
 
