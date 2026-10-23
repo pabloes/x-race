@@ -18,6 +18,7 @@ al empezar y al terminar; el coordinador integra.
 | T10 | Dosier de diseño del circuito Ready Player One | rpo-circuit | Opus 5.5 | — | en curso | rpo-circuit-dossier |
 | T11 | Cámara: retraso solo del desplazamiento en el marco del coche (tirones) | Coordinador | Fable 5.1 | — | pendiente | |
 | T12 | Integración, typecheck, tests, bots, tamaño del deploy, README | Coordinador + Verificación | Haiku 5.5 | todo | pendiente | |
+| T13 | UI nueva según la maqueta aprobada (`docs/design/ui/mockup/`): assets por script en `scene/tools/ui/make-ui.py` (logo, marcos 9-slice, botones, iconos, miniaturas; unos 250 KB), lobby con tarjeta de setup y carrusel de voto, HUD por fase, velocímetro, leyenda plegable, rótulo de intro | UI | Opus 5.5 | T2, T3 | en revisión (falta el visto bueno visual de Pablo) | claude/ui-restyle-b5faed |
 
 ## Decisiones tomadas (22/10/2026)
 
