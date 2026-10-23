@@ -18,6 +18,7 @@ al empezar y al terminar; el coordinador integra.
 | T10 | Dosier de diseño del circuito Ready Player One | rpo-circuit | Opus 5.5 | — | en curso | rpo-circuit-dossier |
 | T11 | Cámara: retraso solo del desplazamiento en el marco del coche (tirones) | Coordinador | Fable 5.1 | — | pendiente | |
 | T12 | Integración, typecheck, tests, bots, tamaño del deploy, README | Coordinador + Verificación | Haiku 5.5 | todo | pendiente | |
+| T14 | Cinemática en el lobby (vuelo en bucle con el menú), START directo a `countdown`, sin fase `intro`, transición de 1 s al chase | Cinemáticas | Sonnet 5.5 | T1 | en revisión | claude/cinematics-df5088 |
 
 ## Decisiones tomadas (22/10/2026)
 

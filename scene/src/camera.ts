@@ -101,7 +101,7 @@ function ensureAnchor(): Entity {
   const entity = engine.addEntity()
   Transform.create(entity, { position: { x: 0, y: 2.4, z: -7.5 } })
   VirtualCamera.create(entity, {
-    defaultTransition: { transitionMode: VirtualCamera.Transition.Time(0.35) },
+    defaultTransition: { transitionMode: VirtualCamera.Transition.Time(1.0) },
     fov: 75
   })
   anchor = entity
@@ -182,14 +182,6 @@ export function follow(car: SampledCar, dt: number): void {
   const transform = Transform.getMutable(rig)
   transform.position = camPos
   transform.rotation = Quaternion.fromLookAt(camPos, aim, quatRotate(chaseRot, LOCAL_UP))
-}
-
-/**
- * The virtual camera entity itself, for the pre-race cinematic to drive while the chase
- * is not running. Whoever moves it must stop before `follow` is called again.
- */
-export function rig(): Entity {
-  return ensureAnchor()
 }
 
 /** Gives the camera and the controls back to the avatar. */
