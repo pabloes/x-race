@@ -260,9 +260,10 @@ export function main(): void {
   void detectPlatform()
   buildTrack(activeTrack())
   // A Roadster parked on the gravel beside the grid, where the avatar arrives (the
-  // `paddock` spawn point in scene.json), nose towards the newcomer. On the gravel plane,
-  // which sits a centimetre up, so the wheels rest on it rather than in it.
-  parkCar({ x: 255.5, y: 0.66, z: 46.5 }, 275)
+  // `paddock` spawn point in scene.json), nose towards the newcomer and a touch towards the
+  // track. On the far side of the straight from the grandstands, which hid both. On the
+  // gravel plane, which sits a centimetre up, so the wheels rest on it rather than in it.
+  parkCar({ x: 255.5, y: 0.66, z: 72.5 }, 265)
   // Measurement only, on the cannon-prediction branch: see spike-cannon.ts. Off unless
   // it is being read, because a cannon world stepping in the scene thread is exactly the
   // sort of thing that makes the car feel late while you are trying to judge the car.
