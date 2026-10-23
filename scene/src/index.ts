@@ -59,6 +59,10 @@ const connection = new Connection({
     players = list
     const me = list.find((p) => p.id === connection.playerId)
     hud.spectator = me?.spectator === true
+    // The lobby card's roster: everyone who would drive, bots included, and who is ready.
+    const drivers = list.filter((p) => !p.spectator)
+    hud.pilots = drivers.length
+    hud.ready = drivers.filter((p) => p.ready).length
     setDriverNames(list, connection.playerId)
   },
   onStandings: (list) => {
