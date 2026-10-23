@@ -511,17 +511,13 @@ export class Room {
           return
         }
         if (this.startRequested) {
-          this.beginIntro(nowMs)
+          this.beginRace(nowMs)
           return
         }
         // Nothing starts by itself. Multiplayer holds the door open for a while first;
         // solo is ready the moment its player is.
         this.phaseEndsMs =
           this.mode === 'multiplayer' && nowMs < this.joinWindowEndsMs ? this.joinWindowEndsMs : 0
-        return
-      }
-      case 'intro': {
-        if (nowMs >= this.phaseEndsMs) this.beginCountdown(nowMs)
         return
       }
       case 'countdown': {
@@ -569,19 +565,17 @@ export class Room {
   }
 
   /**
-   * START: count the vote, move the room to the winner, and run the flyover with the cars
-   * already on the new grid. The event goes out before the phase does, so every client
-   * can say which circuit it is, and whether a draw picked it, as the flyover begins.
+   * START: count the vote, move the room to the winner and go straight to the countdown
+   * with the cars on the new grid. The track event goes out before the phase does, so
+   * every client can say which circuit it is, and whether a draw picked it, as the
+   * countdown begins.
    */
-  private beginIntro(nowMs: number): void {
+  private beginRace(nowMs: number): void {
     const { track, votes, tie } = this.countVotes()
     this.votes.clear()
     if (track !== this.track.base) this.changeTrack(trackById(track))
     this.events.push({ t: 'track', track, votes, tie })
-    this.phase = 'intro'
-    this.startRequested = false
-    this.phaseEndsMs = nowMs + RACE.introMs
-    this.resetGrid(nowMs)
+    this.beginCountdown(nowMs)
   }
 
   /** Most votes wins; nobody voting keeps the circuit; a draw is settled at random. */

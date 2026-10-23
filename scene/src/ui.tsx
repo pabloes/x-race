@@ -11,8 +11,8 @@
  * Each phase owns the screen differently. The lobby is the logo, the setup card down the
  * left (leaving the parked car in view) and the circuit card at the top right. The race is
  * the same top-right card turned into lap, position, checkpoints and time, the standings
- * under it, and the speedometer at the bottom left. The intro is letterbox bands and the
- * circuit's name, and nothing else: the flyover is the show.
+ * under it, and the speedometer at the bottom left. The lobby is drawn over the circuit
+ * flyover, so its card is opaque glass: it has to read over sky, asphalt and neon alike.
  *
  * Panels are absolutely positioned against the screen edges, in virtual pixels. The
  * virtual screen is never smaller than VIRTUAL_WIDTH x VIRTUAL_HEIGHT in either direction
@@ -220,7 +220,6 @@ const PINK = rgb(0xff4d6d)
 const GOOD = rgb(0x4ade80)
 const ON_GREEN = rgb(0x052a12)
 const ON_ACCENT = rgb(0x06252b)
-const BAND = rgb(0x04090f)
 const WELL = rgb(0x040c18, 0.7)
 const PILL = rgb(0x061224, 0.7)
 
@@ -281,16 +280,14 @@ for (const name of ['flag', 'mode', 'robot', 'laps', 'person', 'people', 'play',
  * described here before `TrackId` knows it; one without an entry still gets a card, just
  * without a picture.
  */
-const TRACK_CARDS: Partial<Record<string, { thumb: string; blurb: string; intro: string }>> = {
+const TRACK_CARDS: Partial<Record<string, { thumb: string; blurb: string }>> = {
   city: {
     thumb: 'images/ui/thumb-city.png',
-    blurb: 'Circuito urbano · salto y techo invertido',
-    intro: 'Recta de meta · salto sobre pilares · techo invertido'
+    blurb: 'Circuito urbano · salto y techo invertido'
   },
   skyline: {
     thumb: 'images/ui/thumb-skyline.png',
-    blurb: 'Azoteas con huecos · túnel invertido',
-    intro: 'Azoteas con huecos · túnel invertido · sacacorchos'
+    blurb: 'Azoteas con huecos · túnel invertido'
   }
 }
 
@@ -325,8 +322,6 @@ const SPEED_WIDTH = 405
 /** km/h at which the speed bar is full: a little over flat out on boost. */
 const SPEED_BAR_FULL = 240
 const SPEED_SEGMENTS = 12
-
-const BAND_HEIGHT = 81
 
 function clock(ms: number): string {
   const s = Math.max(0, Math.ceil(ms / 1000))
@@ -380,7 +375,6 @@ function Heading(props: { icon: string; title: string; size?: number; children?:
 // --- Lobby: logo and setup card -----------------------------------------------------------
 
 function Logo() {
-  if (hud.phase === 'intro') return null
   if (hud.phase !== 'lobby' && !hud.spectator) return null
   return (
     <UiEntity
@@ -599,7 +593,6 @@ function ActionButton(props: { primary: boolean; enabled?: boolean; icon?: strin
  */
 function LobbyCard() {
   const inLobby = hud.phase === 'lobby'
-  if (hud.phase === 'intro') return null
   if (!inLobby && !hud.spectator) return null
 
   // Spectating is a decision to watch, so the card stays out of the way until asked for,
@@ -939,7 +932,6 @@ function Results() {
 }
 
 function CircuitCard() {
-  if (hud.phase === 'intro') return null
   const finished = hud.phase === 'finished' && hud.standings.length > 0
   return (
     <UiEntity
@@ -1004,7 +996,6 @@ function Standings() {
 }
 
 function RightColumn() {
-  if (hud.phase === 'intro') return null
   return (
     <UiEntity
       uiTransform={{
@@ -1058,7 +1049,7 @@ function Toast() {
     <UiEntity
       uiTransform={{
         positionType: 'absolute',
-        position: { left: 0, top: hud.phase === 'intro' ? BAND_HEIGHT + 16 : EDGE },
+        position: { left: 0, top: EDGE },
         width: '100%',
         flexDirection: 'row',
         justifyContent: 'center'
@@ -1093,7 +1084,7 @@ function Toast() {
 
 /** Countdown, GO, finish and podium lines, in the upper middle of the screen. */
 function BigMessage() {
-  if (hud.bigMessage === '' || hud.phase === 'intro') return null
+  if (hud.bigMessage === '') return null
   const digit = hud.bigMessage.length <= 3
   return (
     <UiEntity
@@ -1356,7 +1347,6 @@ function ConnectionPill() {
 const CONTROLS_PEEK_MS = 5000
 
 function BottomRight() {
-  if (hud.phase === 'intro') return null
   const mobile = isMobile()
   const folded = hud.phase === 'racing' || hud.phase === 'finished'
   const showLegend = !mobile && (!folded || hud.controlsMs > 0)
@@ -1384,97 +1374,6 @@ function BottomRight() {
             <Icon name="question" size={26} />
           </UiEntity>
         ) : null}
-      </UiEntity>
-    </UiEntity>
-  )
-}
-
-// --- Intro --------------------------------------------------------------------------------
-
-/**
- * The flyover's dressing: letterbox bands, a small logo, the circuit's card and the skip
- * hint, with a progress line in the bottom band. Everything else steps aside.
- */
-function IntroOverlay() {
-  if (hud.phase !== 'intro') return null
-  const track = trackById(hud.track)
-  const face = TRACK_CARDS[hud.track]
-  const number = TRACK_IDS.indexOf(hud.track) + 1
-  const km = (track.lapLength / 1000).toFixed(1)
-  // `index.ts` captions a vote settled by draw as "NAME, BY DRAW"; that belongs in the
-  // small print here, not in the name.
-  const byDraw = hud.bigMessage.endsWith('BY DRAW')
-  const progress = Math.max(0, Math.min(1, 1 - hud.phaseMs / RACE.introMs))
-  return (
-    <UiEntity uiTransform={{ positionType: 'absolute', position: { left: 0, top: 0 }, width: '100%', height: '100%' }}>
-      <UiEntity
-        uiTransform={{ positionType: 'absolute', position: { left: 0, top: 0 }, width: '100%', height: BAND_HEIGHT }}
-        uiBackground={{ color: BAND }}
-      />
-      <UiEntity
-        uiTransform={{ positionType: 'absolute', position: { left: 0, bottom: 0 }, width: '100%', height: BAND_HEIGHT }}
-        uiBackground={{ color: BAND }}
-      />
-      <UiEntity
-        uiTransform={{ positionType: 'absolute', position: { left: 40, top: 12 }, width: 228, height: 57 }}
-        uiBackground={BG_LOGO}
-      />
-      <UiEntity
-        uiTransform={{
-          positionType: 'absolute',
-          position: { left: 40 - FRAME_GLOW, bottom: BAND_HEIGHT + 27 - FRAME_GLOW },
-          flexDirection: 'column',
-          padding: { left: FRAME_GLOW + 24, right: FRAME_GLOW + 40, top: FRAME_GLOW + 18, bottom: FRAME_GLOW + 20 }
-        }}
-        uiBackground={BG_CARD}
-      >
-        <Label
-          value={`CIRCUIT ${number} · ${hud.laps} LAPS · ${km} KM`}
-          fontSize={13}
-          color={ACCENT}
-          textAlign="middle-left"
-          textWrap="nowrap"
-        />
-        <Label value={track.name} fontSize={88} color={INK} textAlign="middle-left" textWrap="nowrap" />
-        <Label
-          value={`${byDraw ? 'Elegido por sorteo · ' : ''}${face !== undefined ? face.intro : ''}`}
-          fontSize={16}
-          color={MUTED}
-          textAlign="middle-left"
-          textWrap="nowrap"
-        />
-      </UiEntity>
-      <UiEntity
-        uiTransform={{
-          positionType: 'absolute',
-          position: { right: 40, bottom: BAND_HEIGHT + 27 },
-          height: 46,
-          flexDirection: 'row',
-          alignItems: 'center',
-          padding: { left: 12, right: 18 }
-        }}
-        uiBackground={BG_TAG}
-      >
-        <UiEntity
-          uiTransform={{ height: 28, justifyContent: 'center', padding: { left: 8, right: 8 }, margin: { right: 10 } }}
-          uiBackground={BG_KEY}
-        >
-          <Label value="SPACE" fontSize={13} color={INK} textAlign="middle-center" textWrap="nowrap" />
-        </UiEntity>
-        <Label value="SKIP" fontSize={13} color={INK} textAlign="middle-left" textWrap="nowrap" />
-      </UiEntity>
-      <UiEntity
-        uiTransform={{
-          positionType: 'absolute',
-          position: { left: 0, bottom: 38 },
-          width: '100%',
-          height: 4,
-          padding: { left: 40, right: 40 }
-        }}
-      >
-        <UiEntity uiTransform={{ flexGrow: 1, height: '100%' }} uiBackground={{ color: rgb(0x3ad1ff, 0.2) }}>
-          <UiEntity uiTransform={{ width: `${progress * 100}%`, height: '100%' }} uiBackground={{ color: ACCENT }} />
-        </UiEntity>
       </UiEntity>
     </UiEntity>
   )
@@ -1555,7 +1454,6 @@ function Hud() {
         pointerFilter: 'none'
       }}
     >
-      <IntroOverlay />
       <Logo />
       <RightColumn />
       <Speedometer />

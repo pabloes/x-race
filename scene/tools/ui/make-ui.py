@@ -606,7 +606,7 @@ def main():
     # panel-soft: secondary panels (standings). Bottom-right chamfer, no glow. margin 2.
     put(glass_frame((64, 64), 2, (0, 0, 18, 0), 0.5, 0.0, fill_alpha=0.86, inner_glow=False),
         'panel-soft.png', 24)
-    # panel-tag: small buttons and tags (?, SKIP, LEAVE). Top-right chamfer 12. margin 2.
+    # panel-tag: small buttons and tags (?, LEAVE, the menu tab). Top-right chamfer 12. margin 2.
     put(glass_frame((64, 64), 2, (0, 12, 0, 0), 0.6, 0.0, fill_alpha=0.86, inner_glow=False),
         'panel-tag.png', 16)
     # panel-plain: the controls legend. Rounded 8, faint border. margin 1.

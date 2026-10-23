@@ -398,8 +398,6 @@ export const BUILDING_CATALOG = {
 
 export const RACE = {
   laps: 3,
-  /** Length of the pre-race cinematic phase; every circuit's shots add up to this. */
-  introMs: 12000,
   /**
    * How long the shared room holds the door open before anyone may start.
    *
@@ -441,5 +439,5 @@ export const NET = {
   /** Server pings idle sockets to detect half-open connections. */
   heartbeatMs: 5000,
   clientTimeoutMs: 15000,
-  protocolVersion: 2
+  protocolVersion: 3
 } as const

@@ -14,12 +14,12 @@ fracción que `ui.tsx` pasa en `textureSlices`. El conjunto pesa unos 250 KB (pr
 
 | Imagen | Uso |
 |---|---|
-| `logo.png` (1024 x 256) | Logo arriba a la izquierda en el lobby y, pequeño, en la intro. SF Pro expandida y negra, en itálica sintética, con extrusión, contorno, brillo y bandera a cuadros, imitando `docs/design/reference/ui/logo-reference.png` |
+| `logo.png` (1024 x 256) | Logo arriba a la izquierda en el lobby. SF Pro expandida y negra, en itálica sintética, con extrusión, contorno, brillo y bandera a cuadros, imitando `docs/design/reference/ui/logo-reference.png` |
 | `panel-frame.png`, `panel-frame-tr.png` | Cristal azul oscuro con borde cian y brillo: tarjeta de lobby (chaflanes arriba a la derecha y abajo a la izquierda) y tarjetas del HUD (solo arriba a la derecha) |
 | `panel-soft.png`, `panel-tag.png`, `panel-plain.png` | Paneles secundarios sin brillo: clasificación, botones pequeños, leyenda de controles |
 | `card-on.png`, `card-off.png` | Tarjetas seleccionables (modo, vueltas, bots), con la misma geometría para que elegir una no mueva nada |
 | `button-green.png`, `button-outline.png` | START RACE y SPECTATE |
-| `key-cap.png` | Teclas de la leyenda y de SPACE · SKIP |
+| `key-cap.png` | Teclas de la leyenda de controles |
 | `toast-frame.png` | Aviso de evento con puntas; se estira solo a lo ancho |
 | `seg-on.png`, `seg-off.png`, `charge-fill.png`, `dot-*.png` | Barra segmentada de velocidad, relleno de carga, puntos del carrusel |
 | `icon-*.png` (32 px) | Iconos con su color ya puesto |

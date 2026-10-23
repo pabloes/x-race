@@ -22,6 +22,7 @@ import { cheer, forgetMissing, updateCarAudio } from './audio'
 import { carRoot, dropMissing, parkCar, renderCar, setDriverNames } from './car'
 import { updateSkidmarks } from './skidmarks'
 import { detach, follow } from './camera'
+import { updateFlyover } from './cinematic'
 import { playerIdentity, serverUrl } from './config'
 import { dropBoost, readInputBits, respawnPressed } from './input'
 import { Connection } from './net/connection'
@@ -46,13 +47,6 @@ let localNow = 0
 let players: PlayerInfo[] = []
 /** This frame's own input bits, kept for the sounds that have no flag on the wire. */
 let inputBits = 0
-/**
- * What the flyover is captioned with, from the `track` event. Kept apart from the HUD,
- * because the event can land a snapshot before the phase leaves the lobby, and the lobby
- * clears the big message every frame; it is dropped once the countdown starts.
- */
-let trackNotice = ''
-
 const connection = new Connection({
   onEvents: handleEvents,
   onPlayers: (list) => {
@@ -118,7 +112,7 @@ function handleEvents(events: GameEvent[]): void {
         // otherwise a circuit nobody seems to have picked just appears.
         if (isTrackId(event.track)) {
           const name = trackById(event.track).name
-          trackNotice = event.tie ? `${name}, BY DRAW` : name
+          if (event.tie) toast(`${name}, BY DRAW`, 3500)
         }
         break
     }
@@ -159,14 +153,22 @@ function renderSystem(dt: number): void {
   }
 
   const mine = cars.get(connection.playerId)
-  // Cinematic hook. While the room's phase is 'intro' the flyover owns the camera, in
-  // place of `follow`/`detach`: with scene/src/cinematic.ts merged, `introElapsedMs(race
-  // phase, phaseMs, dt)` and then `playIntro(activeTrack(), activeTrack().intro, elapsed)`,
-  // reading `connection.buffer.latestRace()` like the HUD does.
-  // The intro flyover owns the camera, so the scenery follows it rather than the parked car.
-  setDecorFocus(mine ? { x: mine.pos.x, z: mine.pos.z } : null, hud.phase === 'intro')
+  // In the lobby, behind the open menu, the camera flies the circuit; with the menu folded
+  // it is the avatar's. From START on, the chase takes over from the flyover with a 1 s blend.
+  const inLobby = hud.phase === 'lobby'
+  const flyover = updateFlyover(
+    inLobby && hud.connected && !hud.spectator,
+    !hud.menuMinimised,
+    activeTrack(),
+    dt
+  )
+  // The flyover moves the camera, so the scenery follows it rather than the parked car.
+  setDecorFocus(mine ? { x: mine.pos.x, z: mine.pos.z } : null, flyover)
   if (mine) {
-    follow(mine, dt)
+    if (!flyover) {
+      if (inLobby) detach()
+      else follow(mine, dt)
+    }
     hud.speedKmh = vlen(mine.vel) * 3.6 * SPEEDO_EXAGGERATION
     hud.charge = mine.charge
     // Empty battery: the car has already stopped boosting, so stop asking for it too.
@@ -186,7 +188,7 @@ function renderSystem(dt: number): void {
       label: `${next + 1}/${checkpoints.length}`
     }
   } else {
-    detach()
+    if (!flyover) detach()
     hud.nextCheckpoint = null
   }
   hud.drivers = cars.size > 0 ? cars.size : players.length
@@ -236,12 +238,8 @@ function hudSystem(dt: number): void {
     hud.bots = race.bots
     hud.joining = race.joining
     if (race.phase === 'countdown') {
-      trackNotice = ''
       const seconds = Math.ceil(race.phaseMs / 1000)
       hud.bigMessage = seconds > 0 ? String(seconds) : 'GO!'
-    } else if (race.phase === 'intro') {
-      // Whoever arrives mid-flyover missed the event, but should still see the name.
-      hud.bigMessage = trackNotice !== '' ? trackNotice : activeTrack().name
     } else if (race.phase === 'lobby') {
       // The menu is on screen in the lobby and says this itself; printing it again in the
       // middle of the screen just put two texts on top of each other.

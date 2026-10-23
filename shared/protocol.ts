@@ -156,11 +156,7 @@ export function decodeCar(w: WireCar): CarState {
 
 // --- Race state -------------------------------------------------------------
 
-/**
- * `intro` sits between the lobby and the countdown: the circuit's flyover, with the cars
- * already held on the grid. Its `phaseMs` is the clock every client runs the cinematic on.
- */
-export type RacePhase = 'lobby' | 'intro' | 'countdown' | 'racing' | 'finished'
+export type RacePhase = 'lobby' | 'countdown' | 'racing' | 'finished'
 
 /** Votes per circuit; circuits nobody voted for are absent. */
 export type VoteCount = Partial<Record<TrackId, number>>

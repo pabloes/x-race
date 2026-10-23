@@ -22,7 +22,7 @@
  */
 
 import { defaultIntro, validateIntro } from '../cinematic'
-import { BUILDING_CATALOG, CAR, RACE } from '../constants'
+import { BUILDING_CATALOG, CAR } from '../constants'
 import { quatConjugate, quatFromEulerDegrees, quatRotate, vadd, vdot, vscale, vsub, type Vec3 } from '../math'
 import type {
   Euler,
@@ -640,8 +640,8 @@ export function buildTrack(def: TrackDefinition): Track {
   // The shots are placed on the built geometry, so they come last. They are not part of
   // the fingerprint: a camera move does not put a wall where the client cannot see it.
   const intro =
-    typeof def.intro === 'function' ? def.intro(track) : def.intro ?? defaultIntro(track, RACE.introMs)
-  validateIntro(intro, RACE.introMs)
+    typeof def.intro === 'function' ? def.intro(track) : def.intro ?? defaultIntro(track)
+  validateIntro(intro)
   return { ...track, intro, id: `${def.id}-${fingerprint(track)}` }
 }
 
