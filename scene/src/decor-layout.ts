@@ -272,7 +272,7 @@ export function layoutDecor(track: Track, manifest: KitManifest): Placed[] {
     if (p.s % BARRIER_STEP === 0) {
       for (const side of [-1, 1]) {
         const q = beside(p, side * (half + BARRIER_OFFSET))
-        push('barrier', 'trackside', q.x, q.z, yaw, g)
+        push('barrier', 'trackside', q.x, q.z, yawOfRight(p.dx, p.dz), g)
       }
     }
 
@@ -282,7 +282,7 @@ export function layoutDecor(track: Track, manifest: KitManifest): Placed[] {
       const inside = turn > 0 ? -1 : 1
       if (p.s % KERB_STEP === 0) {
         const q = beside(p, inside * (half + 0.4))
-        push('kerb', 'trackside', q.x, q.z, yaw, g)
+        push('kerb', 'trackside', q.x, q.z, yawOfRight(p.dx, p.dz), g)
       }
       if (p.s % CHEVRON_STEP === 0) {
         const q = beside(p, -inside * (half + 3.5))
