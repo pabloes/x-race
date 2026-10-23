@@ -676,8 +676,11 @@ function buildGrid(from: P2, to: P2): Spawn[] {
   const yaw = yawOf(dir)
   const length = len(sub(to, from))
   const spawns: Spawn[] = []
-  for (const back of [0.58, 0.5]) {
-    const base = add(from, scale(dir, length * back))
+  // The rows are a fixed distance apart, not fractions of the straight: on a 300 m straight
+  // 0.58/0.5 left 24 m between them. A 4.4 m car plus a 3.6 m gap so nobody touches the car
+  // in front when they pull away makes 8 m.
+  for (const behind of [0, 8]) {
+    const base = add(from, scale(dir, length * 0.58 - behind))
     for (const offset of [-4.8, -1.6, 1.6, 4.8]) {
       const p = add(base, scale(side, offset))
       spawns.push({ pos: { x: p.x, y: RIDE_HEIGHT, z: p.z }, yaw })
