@@ -299,7 +299,8 @@ const TRACK_CARDS: Partial<Record<string, { thumb: string; blurb: string; intro:
  * one gets a plain well: the dots are still right, there is just nothing under them.
  */
 const MINIMAPS: Partial<Record<TrackId, string>> = {
-  city: 'images/minimap.png'
+  city: 'images/minimap.png',
+  skyline: 'images/minimap-skyline.png'
 }
 
 // --- Layout -------------------------------------------------------------------------------

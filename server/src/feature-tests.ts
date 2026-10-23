@@ -14,7 +14,7 @@
 import { CAR, TICK_DT } from '../../shared/constants'
 import { quatFromEulerDegrees, quatRotate, vlen, type Vec3 } from '../../shared/math'
 import { InputBit } from '../../shared/protocol'
-import { DEFAULT_TRACK, isTrackId, TRACK_IDS, trackById } from '../../shared/tracks'
+import { DEFAULT_TRACK, isTrackId, lineOffset, TRACK_IDS, trackById } from '../../shared/tracks'
 import { CarSim } from './car-sim'
 import { createWorld, initPhysics } from './physics'
 import { SCENARIOS, type Scenario } from './scenarios'
@@ -40,6 +40,10 @@ type Result = {
   /** Ticks spent with wheels on the slab, upside down: what a ceiling run actually is. */
   ceilingTicks: number
   respawns: number
+  /** Upright, on its wheels and how high, a second after the first respawn. */
+  afterRespawn: { upright: boolean; grounded: boolean; y: number } | null
+  /** Closest the car came to the scenario's `requirePass` point. */
+  closest: number
   end: Vec3
 }
 
@@ -49,6 +53,10 @@ async function run(s: Scenario): Promise<Result> {
   // Checkpoints only count in lap order, so pretend the car already passed the previous
   // one; otherwise an isolated scenario can never register the checkpoint under test.
   if (s.requireCp !== undefined) car.cp = s.requireCp - 1
+  if (s.lastCp !== undefined) {
+    car.cp = s.lastCp
+    car.cpTotal = s.lastCp
+  }
   // Full battery. These scenarios measure what the car does, not what the charge economy
   // allows: a race starts at a tenth of a bar on purpose, and a thruster test that fails
   // because the bar ran out is testing the wrong thing.
@@ -70,20 +78,32 @@ async function run(s: Scenario): Promise<Result> {
     endedGrounded: false,
     ceilingTicks: 0,
     respawns: 0,
+    afterRespawn: null,
+    closest: Infinity,
     end: { x: 0, y: 0, z: 0 }
   }
+  let respawnTick = -1
+  let lineIndex = 0
 
   const ticks = Math.round(s.seconds * 60)
   for (let tick = 0; tick < ticks; tick++) {
     // Throttle doubles as nose-down pitch in the air, so it is released once airborne —
     // holding it through a jump front-flips the car, which is a player mistake, not a bug.
     const airborne = ![0, 1, 2, 3].some((i) => car.vehicle.wheel(i).contact)
-    car.setInput(airborne ? s.bits & ~(InputBit.Throttle | InputBit.Boost) : s.bits)
+    let bits = airborne ? s.bits & ~(InputBit.Throttle | InputBit.Boost) : s.bits
+    if (s.flipOnce && r.tricks.length === 0) bits |= InputBit.Flip
+    if (s.thrustOnHint) {
+      lineIndex = lineOffset(TRACK, car.vehicle.position(), lineIndex).index
+      // The point the car is heading for, not the one it is level with: a bot aims ahead.
+      if (TRACK.centreline[(lineIndex + 1) % TRACK.centreline.length].hint === 'thrust') bits |= InputBit.Thrust
+    }
+    if (s.requireRespawn && r.respawns > 0) bits = 0
+    car.setInput(bits)
     for (const e of car.update(TICK_DT, (tick * 1000) / 60, true)) {
       if (e.t === 'cp') r.cps.push(e.cp)
       if (e.t === 'trick') r.tricks.push(e.name)
       if (e.t === 'invert' && e.entered) r.inverted = true
-      if (e.t === 'respawn') r.respawns++
+      if (e.t === 'respawn' && r.respawns++ === 0) respawnTick = tick
     }
     world.step()
     const p = car.vehicle.position()
@@ -92,6 +112,16 @@ async function run(s: Scenario): Promise<Result> {
     r.minY = Math.min(r.minY, p.y)
     r.maxSpeed = Math.max(r.maxSpeed, vlen(car.vehicle.linvel()))
     if (up.y < -0.5) r.wentUpsideDown = true
+    if (s.requirePass) {
+      r.closest = Math.min(r.closest, Math.hypot(p.x - s.requirePass.pos.x, p.y - s.requirePass.pos.y, p.z - s.requirePass.pos.z))
+    }
+    if (respawnTick >= 0 && tick === respawnTick + 60) {
+      r.afterRespawn = {
+        upright: up.y > 0.7,
+        grounded: [0, 1, 2, 3].some((i) => car.vehicle.wheel(i).contact),
+        y: p.y
+      }
+    }
     if (up.y < -0.5 && p.y > 4 && [0, 1, 2, 3].some((i) => car.vehicle.wheel(i).contact)) {
       r.ceilingTicks++
     }
@@ -129,7 +159,12 @@ async function main(): Promise<void> {
       (s.requireCp === undefined || r.cps.includes(s.requireCp)) &&
       (s.requireUpright !== true || (r.endedUpright && r.endedGrounded)) &&
       (s.requireHeight === undefined || r.maxY >= s.requireHeight) &&
-      (s.requireCeiling !== true || r.ceilingTicks >= 15)
+      (s.requireCeiling !== true || r.ceilingTicks >= 15) &&
+      (s.requireRespawn !== true ||
+        (r.afterRespawn !== null && r.afterRespawn.upright && r.afterRespawn.grounded)) &&
+      (s.requireMinY === undefined || r.minY >= s.requireMinY) &&
+      (s.requirePass === undefined || r.closest <= s.requirePass.radius) &&
+      (s.requireTrick === undefined || r.tricks.includes(s.requireTrick))
     const flags = [
       `maxY=${r.maxY.toFixed(1)}`,
       `maxSpd=${r.maxSpeed.toFixed(1)}`,
@@ -140,6 +175,9 @@ async function main(): Promise<void> {
       r.endedUpright ? 'upright' : 'NOT-upright',
       r.endedGrounded ? 'grounded' : 'airborne',
       r.respawns ? `respawns=${r.respawns}` : '',
+      r.afterRespawn ? `back at y=${r.afterRespawn.y.toFixed(1)}${r.afterRespawn.upright ? '' : ' NOT-upright'}` : '',
+      s.requirePass ? `passed ${r.closest.toFixed(1)} m off` : '',
+      s.requireMinY !== undefined ? `minY=${r.minY.toFixed(1)}` : '',
       r.tricks.length ? `tricks=${[...new Set(r.tricks)].join('/')}` : ''
     ]
       .filter(Boolean)

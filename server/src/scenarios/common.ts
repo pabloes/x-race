@@ -8,7 +8,7 @@
 
 import type { Vec3 } from '../../../shared/math'
 import { InputBit } from '../../../shared/protocol'
-import { checkpointsOf, type Track } from '../../../shared/tracks'
+import { checkpointsOf, spawnHeightAt, type Track } from '../../../shared/tracks'
 
 export type Scenario = {
   name: string
@@ -26,6 +26,23 @@ export type Scenario = {
   requireHeight?: number
   /** Scenario passes if the car drove upside down on the ceiling slab. */
   requireCeiling?: boolean
+  /** Checkpoint the car last passed, which is where a respawn puts it back. */
+  lastCp?: number
+  /**
+   * The car is meant to fall: it passes if it respawned and, a second later, sits upright
+   * on the road. Input is released at the respawn, so the car is not driven straight back in.
+   */
+  requireRespawn?: boolean
+  /** Scenario passes if the car never went below this height. */
+  requireMinY?: number
+  /** Scenario passes if the car came within `radius` metres of `pos`. */
+  requirePass?: { pos: Vec3; radius: number }
+  /** Scenario passes if this trick was scored. */
+  requireTrick?: string
+  /** Fire the thrusters wherever the racing line says so, as a bot does. */
+  thrustOnHint?: boolean
+  /** Hold the barrel roll key (E) only until the first trick, as a player taps it. */
+  flipOnce?: boolean
 }
 
 export const THROTTLE = InputBit.Throttle
@@ -59,7 +76,7 @@ export function approach(track: Track, index: number, metres: number): { pos: Ve
   const here = path[i].pos
   const next = path[(i + 1) % path.length].pos
   return {
-    pos: { x: here.x, y: 0.95, z: here.z },
+    pos: { x: here.x, y: spawnHeightAt(track, here.x, here.z), z: here.z },
     yaw: (Math.atan2(next.x - here.x, next.z - here.z) * 180) / Math.PI
   }
 }

@@ -6,9 +6,11 @@
 import type { Track, TrackId } from '../../../shared/tracks'
 import { cityScenarios } from './city'
 import type { Scenario } from './common'
+import { skylineScenarios } from './skyline'
 
 export type { Scenario } from './common'
 
 export const SCENARIOS: Record<TrackId, (track: Track) => Scenario[]> = {
-  city: cityScenarios
+  city: cityScenarios,
+  skyline: skylineScenarios
 }

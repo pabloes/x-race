@@ -10,7 +10,7 @@
  * subject to exactly the same physics and rules as a human driver.
  */
 
-import { CAR } from '../../shared/constants'
+import { CAR, CHARGE, TICK_MS } from '../../shared/constants'
 import { clamp, quatConjugate, quatRotate, vdot, type Vec3 } from '../../shared/math'
 import { InputBit } from '../../shared/protocol'
 import type { PathPoint } from '../../shared/tracks'
@@ -21,6 +21,17 @@ const CORNERING = 9.5
 const BRAKING = 9
 /** How long the bot gives itself to be pointing at the next waypoint. */
 const AIM_SECONDS = 0.55
+/** Waypoints (about 6 m each) the bot looks ahead for a gap, to keep the charge for it. */
+const THRUST_LOOKAHEAD = 25
+/**
+ * A bot this far below the point it is aiming at, for this long, is under the circuit:
+ * off a rooftop, or under a slab it did not flip onto. Nothing down there leads back up, so
+ * it does what a player would do and asks for a respawn. Never true on the way through a
+ * set piece: the steepest the line climbs between two waypoints is the corkscrew's 3.5 m,
+ * and the tunnel kicker leaves the slab overhead for well under a second.
+ */
+const STRANDED_BELOW = 6
+const STRANDED_MS = 1500
 
 /**
  * Radius of the racing line at every point, measured in the XZ plane only: the circle
@@ -30,8 +41,11 @@ const AIM_SECONDS = 0.55
  * Precomputed per line because it never changes while the bot drives it, and because a
  * bot would otherwise do this fourteen times a tick.
  */
-function radiiOf(path: Vec3[]): number[] {
+function radiiOf(path: Vec3[], hints: PathPoint['hint'][]): number[] {
   return path.map((_, i) => {
+    // A boost hint means flat out, whatever the line does: the corkscrew's projection on the
+    // ground is a hairpin, and braking for it is the one way to fall off the top.
+    if (hints[i] === 'boost') return 1e4
     const a = path[(i - 1 + path.length) % path.length]
     const b = path[i]
     const c = path[(i + 1) % path.length]
@@ -65,7 +79,9 @@ export const BOT_SKILLS: BotSkill[] = [
 export class BotDriver {
   private waypoint = 0
   private path: Vec3[] = []
+  private hints: PathPoint['hint'][] = []
   private radii: number[] = []
+  private strandedMs = 0
 
   constructor(
     private readonly skill: BotSkill,
@@ -77,8 +93,10 @@ export class BotDriver {
   /** The racing line to drive, replaced when the room changes circuit. */
   follow(centreline: PathPoint[]): void {
     this.path = centreline.map((p) => p.pos)
-    this.radii = radiiOf(this.path)
+    this.hints = centreline.map((p) => p.hint)
+    this.radii = radiiOf(this.path, this.hints)
     this.waypoint = 0
+    this.strandedMs = 0
   }
 
   /** Called once per tick before the car is simulated. */
@@ -159,7 +177,29 @@ export class BotDriver {
     else if (wanted - yawRate < -0.08 - this.skill.slop) bits |= InputBit.Left
     if (speed < targetSpeed) bits |= InputBit.Throttle
     else if (speed > targetSpeed + 2.5) bits |= InputBit.Brake
-    if (car.charge > 0.4 && grounded && curvature < 0.18) bits |= InputBit.Boost
+    const hintAt = (i: number) => this.hints[i % this.hints.length]
+    // A gap ahead: the charge is for the thrusters, so no boost until it is crossed. The pad
+    // before every gap pays a quarter of a bar, and the burst over it costs under a fifth.
+    let gapAhead = false
+    for (let i = 0; i < THRUST_LOOKAHEAD && !gapAhead; i++) gapAhead = hintAt(this.waypoint + i) === 'thrust'
+    if (hintAt(this.waypoint) === 'thrust') bits |= InputBit.Thrust
+    else if (hintAt(this.waypoint) === 'boost') {
+      bits |= InputBit.Throttle
+      if (car.charge > CHARGE.boostFloor) bits |= InputBit.Boost
+    } else if (!gapAhead && car.charge > 0.4 && grounded && curvature < 0.18) bits |= InputBit.Boost
+
+    // In the air the keys are attitude controls: throttle is nose down, steering is yaw, and
+    // either one switches off the self-righting. A bot holding the throttle over a gap
+    // front-flipped onto its roof on the landing every time, so off the ground it lets go of
+    // everything but the thrusters and lets the car level itself.
+    if (!grounded) bits &= InputBit.Thrust
+
+    if (this.path[this.waypoint % this.path.length].y - pos.y > STRANDED_BELOW) this.strandedMs += TICK_MS
+    else this.strandedMs = 0
+    if (this.strandedMs > STRANDED_MS) {
+      this.strandedMs = 0
+      car.requestRespawn()
+    }
     // Bots do not barrel roll. They have no way to judge how much flight is left, so they
     // roll on the way down as happily as on the way up, land on the roof and spend the rest
     // of the race respawning. Tricks are the player's business; the bots' job is to put a

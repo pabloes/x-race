@@ -39,6 +39,7 @@ export type TrackDefinition = {
    * falla ruidosamente si alguna no cabe. Si falta, se aplica la regla actual.
    */
   features?: FeatureKind[]
+  gapLength?: number           // metros sin calzada en cada `gap`; 18 si falta
   intro: Shot[]                // cinemática, ver cinematic.md
 }
 
@@ -75,7 +76,20 @@ export type PathPoint = { pos: Vec3; dir: Vec3; hint?: 'boost' | 'thrust' | 'bra
     como el único loop viable. Entrada y salida alineadas con la recta.
   - `bigramp`: rampa de 22° para toneles, con zona de aterrizaje llana.
   Cada una declara `span` (metros de recta que necesita, márgenes incluidos).
+- Perfil de altura: `Vertex.y` son metros (no se escalan con la forma). Las curvas son llanas
+  a la altura de su vértice; la recta entre dos vértices de distinta altura es una subida con
+  smoothstep y no admite features. Todas las features piden recta llana; `gap`, además, recta
+  en azotea (y ≥ 3 m): más abajo el hueco sería un foso bajo una grava que el cliente dibuja.
+- Bajo cualquier calzada a más de 3 m (y 14 m a cada lado), bajo cada hueco y bajo el
+  sacacorchos no hay suelo de parcela: quien cae, cae fuera del mundo y reaparece. El suelo
+  sigue siendo `kind: 'ground'`, ahora en varias cajas; sin huecos, la caja única de siempre.
+- Controles: si el circuito tiene piezas nuevas, los 12 se reparten por la calzada que queda
+  fuera de ellas (ni en el sacacorchos ni sobre un hueco, donde la reaparición 10 m atrás
+  quedaría en el aire), más uno a mitad de cada tramo invertido. Los pórticos se apoyan en la
+  calzada a la altura que tenga.
 - `respawnFor(track, cp)` y `lineOffset(track, pos, hint)` toman el circuito por parámetro.
+  `spawnHeightAt(track, x, z)` da la altura a la que poner un coche: sobre la calzada más alta
+  en ese punto (las losas de techo no cuentan, así que bajo el túnel es la calzada de abajo).
 
 ## Pruebas
 
@@ -83,7 +97,13 @@ export type PathPoint = { pos: Vec3; dir: Vec3; hint?: 'boost' | 'thrust' | 'bra
   y carga los escenarios de `server/src/scenarios/<id>.ts`. Cada circuito nuevo trae los
   suyos: salto, huecos, túnel, sacacorchos, y aterrizar sobre las ruedas.
 - `npm run harness -- <id>`: el piloto automático completa 3 vueltas pasando por todos los
-  controles. Los bots (`bot-driver.ts`) siguen `centreline` y obedecen `hint`.
+  controles. Los bots (`bot-driver.ts`) siguen `centreline` y obedecen `hint`:
+  - `thrust`: de 6 m antes del borde a 8 m pasado, un impulso de propulsores; con un hueco en
+    los próximos 150 m el bot no gasta carga en turbo.
+  - `boost`: acelerador y turbo, y esa parte de la línea no se frena (la proyección del
+    sacacorchos en el suelo es una horquilla falsa).
+  - En el aire el bot suelta todo menos los propulsores, y si pasa 1,5 s más de 6 m por debajo
+    de su punto de mira (bajo una azotea, bajo una losa) pide reaparecer.
 - `npm run typecheck` en verde.
 
 ## Cliente
@@ -92,3 +112,8 @@ export type PathPoint = { pos: Vec3; dir: Vec3; hint?: 'boost' | 'thrust' | 'bra
   de la sala (ver protocol.md) se limpia y reconstruye; el kit de decoración (`decor.ts`) se
   engancha en los mismos dos puntos.
 - HUD: minimapa y cuenta de controles leen el circuito activo, no una constante.
+- Suelo visual: un plano de grava por caja `ground` y un plano oscuro en cada hueco del suelo,
+  así que quien cae de una azotea cae por un pozo y no atraviesa la grava. Las placas, pórticos
+  y pilares son piezas del kit (`decor.ts`) a la altura de su trigger.
+- Minimapa por circuito: `scene/tools/make-minimap.py <salida>` y la entrada en `MINIMAPS` de
+  `ui.tsx` (`images/minimap-skyline.png`).

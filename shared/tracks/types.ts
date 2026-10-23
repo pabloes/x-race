@@ -9,8 +9,8 @@ import type { Vec3 } from '../math'
 
 export type { Shot }
 
-/** Grows with every circuit added to `TRACKS` (skyline arrives with its definition). */
-export type TrackId = 'city'
+/** Grows with every circuit added to `TRACKS`. */
+export type TrackId = 'city' | 'skyline'
 
 /** Which scenery kit dresses the circuit, see docs/contracts/kit.md. */
 export type Theme = 'city' | 'neon'
@@ -30,7 +30,6 @@ export type FeatureKind =
   | 'start-jump'
   | 'jump'
   | 'ceiling'
-  // Generator pieces still to be written (Mapa 2).
   | 'gap'
   | 'tunnel'
   | 'corkscrew'
@@ -50,6 +49,8 @@ export type TrackDefinition = {
    * longest straight, a jump on it if it is long enough, the flip on the next one).
    */
   features?: FeatureKind[]
+  /** Metres of missing road in every `gap`; 18 if missing. */
+  gapLength?: number
   /**
    * Flyover for the `intro` phase, or a function that reads it off the built track (shots
    * placed on the features, see `intros/`). Missing: `defaultIntro`, built from the track.
