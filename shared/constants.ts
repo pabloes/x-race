@@ -407,7 +407,11 @@ export const RACE = {
    * twenty seconds for yourself is absurd.
    */
   joinWindowMs: 20000,
-  countdownMs: 4000,
+  /**
+   * 10 to 1 rather than 3 to 1: START blends the camera from the lobby flyover to the car
+   * over a second, and the rest is time to read the circuit and settle on the grid before GO.
+   */
+  countdownMs: 10000,
   /** Grace period after the winner finishes before the race is force-ended. */
   finishGraceMs: 20000,
   /**
