@@ -19,9 +19,10 @@ import { quatRotate } from '../../shared/math'
 import type { Track } from '../../shared/tracks'
 import { groupDecor, groupVisible, layoutDecor, type Group, type KitManifest } from './decor-layout'
 import cityManifest from '../models/kit/city/manifest.json'
+import neonManifest from '../models/kit/neon/manifest.json'
 
 /** Kits that have been generated. A theme missing here is dressed with city's. */
-const KITS: Record<string, KitManifest> = { city: cityManifest as KitManifest }
+const KITS: Record<string, KitManifest> = { city: cityManifest as KitManifest, neon: neonManifest as KitManifest }
 
 const UPDATE_SECONDS = 0.25
 /** Below this speed (m/s) the car counts as parked and the view is not cut to a cone. */

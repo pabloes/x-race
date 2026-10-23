@@ -54,7 +54,7 @@ for (const id of TRACK_IDS) {
       const min = item.kind === 'scenery' ? SCENERY_CLEARANCE : 0.2
       if (near < min) fail(`${item.piece} at ${item.x.toFixed(1)},${item.z.toFixed(1)} is ${near.toFixed(2)} m from a road box`)
     }
-    if (['barrier', 'kerb', 'chevron', 'lamp', 'banner', 'stand', 'tree-a', 'tree-b'].includes(item.piece)) {
+    if (['barrier', 'kerb', 'chevron', 'lamp', 'banner', 'stand', 'tree-a', 'tree-b', 'palm', 'hologram'].includes(item.piece)) {
       if (lifted.some((s) => rectDistance(s, item.x, item.z) <= 0)) fail(`${item.piece} sits on a ramp or slab`)
     }
     if (!manifest[item.piece]) fail(`${item.piece} is not in the manifest`)

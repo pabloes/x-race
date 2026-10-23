@@ -50,6 +50,7 @@ const CHEVRON_STEP = 12
 const LAMP_STEP = 30
 const BANNER_STEP = 16
 const STAND_STEP = 12
+const HOLOGRAM_STEP = 60
 /** The main straight is dressed this far either side of the line. */
 const GRANDSTAND_BEFORE = 96
 const GRANDSTAND_AFTER = 48
@@ -305,6 +306,11 @@ export function layoutDecor(track: Track, manifest: KitManifest): Placed[] {
           push('banner', 'scenery', q.x, q.z, yaw, g)
         }
       }
+      if (inWindow(k, BANNER_RANGE, BANNER_RANGE) && p.s % HOLOGRAM_STEP === 0) {
+        // Neon only (city has no hologram). Opposite the stands, facing the road; a few.
+        const q = beside(p, -(half + 9))
+        push('hologram', 'scenery', q.x, q.z, yawOf(p.dz, -p.dx), g)
+      }
       if (inWindow(k, GRANDSTAND_BEFORE, GRANDSTAND_AFTER) && p.s % STAND_STEP === 0) {
         // The right-hand side (the pit side on most circuits); the crowd faces +Z, which
         // has to be the road.
@@ -382,7 +388,7 @@ export function layoutDecor(track: Track, manifest: KitManifest): Placed[] {
         }
       }
       if (inside) continue
-      push(pick < 0.3 ? 'tree-a' : 'tree-b', 'scenery', px, pz, turn, nearestGroup(line, px, pz))
+      push(pick < 0.3 ? 'tree-a' : manifest['palm'] ? 'palm' : 'tree-b', 'scenery', px, pz, turn, nearestGroup(line, px, pz))
     }
   }
 
