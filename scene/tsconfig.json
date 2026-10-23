@@ -2,6 +2,7 @@
   "compilerOptions": {
     "allowJs": true,
     "strict": true,
+    "resolveJsonModule": true,
     "skipLibCheck": true
   },
   "include": [

@@ -61,3 +61,9 @@ de ±110° del frente de la cámara (todo alrededor si está parado), y oculta e
 escribe `VisibilityComponent` cuando cambia. Objetivo: ≤ 400 entidades de decoración
 visibles y ≤ 150 k triángulos visibles a la vez. Lo que ve el coche al mirar adelante es lo
 que importa; lo que queda atrás se apaga.
+
+Implementado en `scene/src/decor-layout.ts` (colocación y selección, puras) y `scene/src/decor.ts`
+(entidades y sistema de 250 ms). Una desviación: barreras, pianos y chevrones se apagan a 90 m en
+lugar de 160 m, porque la vuelta de city se pliega sobre sí misma y solo las barreras sumaban 390
+entidades. `npm run test:decor` recorre la línea de carrera y comprueba distancias y presupuestos
+(city: máx. 339 entidades y 37 k triángulos visibles al conducir; parado con todo alrededor, 460).

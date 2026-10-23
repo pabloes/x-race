@@ -27,6 +27,7 @@ import { dropBoost, readInputBits, respawnPressed } from './input'
 import { Connection } from './net/connection'
 import { SPIKE_CANNON, startCannonSpike } from './spike-cannon'
 import { detectPlatform } from './platform'
+import { setDecorFocus } from './decor'
 import { buildTrack, clearTrack } from './track-render'
 import { hud, menu, setupUi } from './ui'
 
@@ -158,6 +159,7 @@ function renderSystem(dt: number): void {
   // place of `follow`/`detach`: with scene/src/cinematic.ts merged, `introElapsedMs(race
   // phase, phaseMs, dt)` and then `playIntro(activeTrack(), activeTrack().intro, elapsed)`,
   // reading `connection.buffer.latestRace()` like the HUD does.
+  setDecorFocus(mine ? { x: mine.pos.x, z: mine.pos.z } : null)
   if (mine) {
     follow(mine, dt)
     hud.speedKmh = vlen(mine.vel) * 3.6 * SPEEDO_EXAGGERATION
