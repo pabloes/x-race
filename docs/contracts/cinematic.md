@@ -28,7 +28,8 @@ export type Shot = {
 }
 ```
 
-- Cada `TrackDefinition.intro` suma `RACE.introMs / 1000` ± 0.5 s; `buildTrack` falla si no.
+- `TrackDefinition.intro` puede durar lo que quiera: el vuelo se repite en bucle, así que
+  `validateIntro(shots)` solo comprueba que cada plano sea reproducible.
 - `defaultIntro(track)` en `shared/cinematic.ts` genera tres planos para cualquier circuito
   sin planos propios (recibe el `Track` ya construido; `buildTrack` lo llama cuando la
   definición no trae `intro`): barrido aéreo alto por la primera mitad de la línea de carrera, pasada
@@ -37,17 +38,18 @@ export type Shot = {
 
 ## Cliente (`scene/src/cinematic.ts`)
 
-- `playIntro(track, elapsedMs)` cada fotograma mientras la fase es `intro`:
-  `elapsedMs = RACE.introMs - race.phaseMs`, así quien entra a mitad se incorpora donde va.
-  Coloca la cámara virtual de `camera.ts` (misma entidad; `camera.ts` ya expone `rig()`), con
-  `fov` del plano. Mientras no exista la fase `intro` en el servidor, un flag de desarrollo
-  en `cinematic.ts` permite lanzarla a mano desde el lobby para probarla.
-- `skipIntro()`: tecla espacio o toque en móvil. Deja la cámara de persecución en la parrilla
-  hasta `countdown`. El salto es por jugador; la fase sigue en el servidor.
-- HUD oculto durante la cinemática salvo el nombre del circuito y el aviso de saltar.
-- Espectadores también la ven. Al terminar la fase, vuelve la cámara de persecución sin corte
-  brusco (`VirtualCamera` con transición de 0.35 s, como hoy).
+- El vuelo se ve **en el lobby, antes de START**, mientras el menú está desplegado y el
+  jugador no es espectador. Recorre en bucle `activeTrack().intro` (corte entre planos) sobre
+  una entidad `VirtualCamera` propia, distinta del `rig()` de `camera.ts`; el menú sigue encima.
+  Quien entra a mitad de carrera o es espectador no lo ve.
+- `updateFlyover(eligible, menuOpen, track, dt)` cada fotograma: coloca la cámara y devuelve si
+  el vuelo manda. Espacio lo descarta (la cámara vuelve al avatar); plegar y volver a
+  desplegar el menú lo reactiva.
+- Al dar START la sala pasa directo a `countdown` (no hay fase `intro`). En cuanto hay coche
+  propio, `follow()` pasa `MainCamera` al `rig()` de persecución, y como es otra entidad el
+  `VirtualCamera` hace una transición de 1 s desde el vuelo.
+- Sin rótulo de intro en el HUD: el menú ya dice el circuito.
 
 ## Servidor
 
-- Fase `intro` según `docs/contracts/protocol.md`. Nada más: el servidor no sabe de planos.
+- Nada: no hay fase de cinemática y el servidor no sabe de planos (`protocol.md`).

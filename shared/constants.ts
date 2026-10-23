@@ -381,6 +381,19 @@ export const TRICK = {
   stuckResetMs: 3000
 } as const
 
+// --- Scenery ---
+
+/**
+ * The building sizes the kit ships as GLB pieces (`building-<w>x<d>x<h>`, see
+ * docs/contracts/kit.md). The generator snaps every block to one of these, so the
+ * collider the server builds and the piece the scene draws are the same box to the metre.
+ */
+export const BUILDING_CATALOG = {
+  /** Square footprints, metres a side. */
+  footprints: [20, 28, 36],
+  heights: [12, 24, 36]
+} as const
+
 // --- Race ---
 
 export const RACE = {
@@ -394,7 +407,11 @@ export const RACE = {
    * twenty seconds for yourself is absurd.
    */
   joinWindowMs: 20000,
-  countdownMs: 4000,
+  /**
+   * 10 to 1 rather than 3 to 1: START blends the camera from the lobby flyover to the car
+   * over a second, and the rest is time to read the circuit and settle on the grid before GO.
+   */
+  countdownMs: 10000,
   /** Grace period after the winner finishes before the race is force-ended. */
   finishGraceMs: 20000,
   /**
@@ -426,5 +443,5 @@ export const NET = {
   /** Server pings idle sockets to detect half-open connections. */
   heartbeatMs: 5000,
   clientTimeoutMs: 15000,
-  protocolVersion: 1
+  protocolVersion: 3
 } as const

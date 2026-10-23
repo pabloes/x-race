@@ -4,6 +4,7 @@
  *
  *   npm run bot                  # one bot for 60 s
  *   npm run bot -- 4 90          # four bots for 90 s
+ *   npm run bot -- 2 60 city     # two bots that vote for a circuit in the lobby
  *   SERVER=ws://host:8787 npm run bot
  *
  * It implements the same clock sync and input-stamping the Decentraland scene uses, so if
@@ -30,10 +31,9 @@ import {
   type Input,
   type WireInput
 } from '../../shared/protocol'
-import { TRACK } from '../../shared/track'
+import { DEFAULT_TRACK, isTrackId, TRACK_IDS, trackById, type PathPoint, type TrackId } from '../../shared/tracks'
 
 const URL = process.env.SERVER ?? `ws://localhost:${NET.defaultPort}`
-const PATH = TRACK.centreline
 
 class Bot {
   private socket: WebSocket
@@ -46,6 +46,9 @@ class Bot {
   private pingTimer?: NodeJS.Timeout
   private pingId = 1
   private waypoint = 0
+  /** The racing line of whatever circuit the room is on. */
+  private path: PathPoint[] = trackById(DEFAULT_TRACK).centreline
+  private pathOf: TrackId = DEFAULT_TRACK
   private me: CarState | null = null
   private bits = 0
 
@@ -70,7 +73,9 @@ class Bot {
 
   constructor(
     readonly name: string,
-    url: string
+    url: string,
+    /** Circuit to vote for while the room is in the lobby, if any. */
+    private readonly vote?: TrackId
   ) {
     this.socket = new WebSocket(url)
     this.socket.on('open', () => {
@@ -106,6 +111,11 @@ class Bot {
         this.id = message.id
         this.clockOffset = message.now - Date.now()
         this.stats.joined = true
+        // The full id carries the geometry hash, so a server on another build of the
+        // circuit is caught here rather than as a bot that drives into a field.
+        const current = TRACK_IDS.find((id) => trackById(id).id === message.trackId)
+        if (current === undefined) this.stats.error = `server runs track ${message.trackId}, not one of ours`
+        else this.path = trackById((this.pathOf = current)).centreline
         break
       }
       case 's': {
@@ -127,7 +137,15 @@ class Bot {
           this.stats.flags = car.flags
         }
         this.stats.phase = message.race.phase
-        if (message.race.phase === 'lobby') this.send({ t: 'ready', ready: true })
+        if (message.race.track !== this.pathOf && isTrackId(message.race.track)) {
+          this.pathOf = message.race.track
+          this.path = trackById(this.pathOf).centreline
+          this.waypoint = 0
+        }
+        if (message.race.phase === 'lobby') {
+          this.send({ t: 'ready', ready: true })
+          if (this.vote) this.send({ t: 'vote', track: this.vote })
+        }
         this.think()
         break
       }
@@ -157,7 +175,7 @@ class Bot {
     if (!car) return
     const inverse = quatConjugate(car.rot)
     const toLocal = (i: number) => {
-      const t = PATH[i % PATH.length]
+      const t = this.path[i % this.path.length].pos
       return quatRotate(inverse, { x: t.x - car.pos.x, y: t.y - car.pos.y, z: t.z - car.pos.z })
     }
     for (let step = 0; step < 3; step++) {
@@ -210,9 +228,11 @@ function summarise(values: number[]): string {
 async function main(): Promise<void> {
   const count = Number(process.argv[2] ?? 1)
   const seconds = Number(process.argv[3] ?? 60)
+  const vote = process.argv[4]
+  if (vote !== undefined && !isTrackId(vote)) throw new Error(`unknown track '${vote}'; known: ${TRACK_IDS.join(', ')}`)
   console.log(`connecting ${count} bot(s) to ${URL} for ${seconds}s`)
 
-  const bots = Array.from({ length: count }, (_, i) => new Bot(`bot${i + 1}`, URL))
+  const bots = Array.from({ length: count }, (_, i) => new Bot(`bot${i + 1}`, URL, vote))
   await new Promise((resolve) => setTimeout(resolve, seconds * 1000))
 
   console.log('')

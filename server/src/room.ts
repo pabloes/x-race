@@ -27,7 +27,16 @@ import {
   TICKS_PER_SNAPSHOT,
   TICK_RATE
 } from '../../shared/constants'
-import { CHECKPOINTS, TRACK } from '../../shared/track'
+import {
+  checkpointsOf,
+  isTrackId,
+  TRACK_IDS,
+  trackById,
+  trackFingerprint,
+  type Track,
+  type TrackId,
+  type Trigger
+} from '../../shared/tracks'
 import {
   encodeCar,
   type GameEvent,
@@ -37,10 +46,12 @@ import {
   type RaceState,
   type ServerMessage,
   type Standing,
+  type VoteCount,
   type WireInput
 } from '../../shared/protocol'
 import { BOT_SKILLS, BotDriver } from './bot-driver'
 import { CarSim } from './car-sim'
+import { createWorld } from './physics'
 import type { PhysicsWorld } from './physics/types'
 import type { RaceRecord } from './stats'
 
@@ -157,8 +168,19 @@ export class Room {
    * START was refused forever.
    */
   private joinWindowEndsMs = 0
+  /** Each player's choice of circuit for the next race, counted at START. */
+  private readonly votes = new Map<number, TrackId>()
 
-  constructor(private readonly world: PhysicsWorld) {}
+  /** The circuit this room races on, its physics world, and its checkpoints in order. */
+  private track: Track
+  private world: PhysicsWorld
+  private checkpoints: Trigger[]
+
+  constructor(track: Track) {
+    this.track = track
+    this.world = createWorld(track)
+    this.checkpoints = checkpointsOf(track)
+  }
 
   get playerCount(): number {
     return this.players.size
@@ -189,8 +211,8 @@ export class Room {
   join(name: string, connection: Connection, nowMs: number, address?: string): Player | null {
     if (this.players.size >= RACE.maxPlayers) return null
     const id = this.nextId++
-    const spawn = TRACK.spawns[this.racerCount() % TRACK.spawns.length]
-    const car = new CarSim(id, name, this.world.createVehicle(spawn.pos, spawn.yaw), spawn)
+    const spawn = this.track.spawns[this.racerCount() % this.track.spawns.length]
+    const car = new CarSim(id, name, this.world.createVehicle(spawn.pos, spawn.yaw), spawn, this.track)
     car.lapStartMs = nowMs
     // The door opens for the first arrival into an empty room, not for each one: later
     // arrivals join the window already running.
@@ -210,7 +232,8 @@ export class Room {
       id,
       tick: this.tick,
       now: nowMs,
-      trackId: TRACK.id,
+      trackId: this.track.id,
+      tracks: TRACK_IDS.map((track) => ({ id: track, fingerprint: trackFingerprint(trackById(track)) })),
       tickRate: TICK_RATE,
       snapshotRate: TICK_RATE / TICKS_PER_SNAPSHOT,
       players: this.playerInfos()
@@ -226,6 +249,7 @@ export class Room {
     if (!player) return
     this.world.removeVehicle(player.car.vehicle)
     this.players.delete(id)
+    this.votes.delete(id)
     this.events.push({ t: 'leave', id })
     this.playersDirty = true
     this.standingsDirty = true
@@ -250,6 +274,16 @@ export class Room {
     if (!player) return
     player.ready = ready
     this.playersDirty = true
+  }
+
+  /**
+   * A player's choice of circuit: one per player, spectators included, each replacing the
+   * last, and only in the lobby. An id this server does not know is ignored. There is no
+   * reply; the count comes back in the next snapshot.
+   */
+  onVote(id: number, track: unknown): void {
+    if (this.phase !== 'lobby' || !this.players.has(id) || !isTrackId(track)) return
+    this.votes.set(id, track)
   }
 
   onRespawnRequest(id: number): void {
@@ -311,6 +345,7 @@ export class Room {
         this.phase = 'lobby'
         this.phaseEndsMs = 0
         this.startRequested = false
+        this.votes.clear()
       }
     } else {
       player.car.vehicle.setGravityScale(1)
@@ -340,18 +375,18 @@ export class Room {
   private setBotCount(count: number): void {
     this.botCount = count
     while (this.bots.size > count) this.removeLastBot()
-    while (this.bots.size < count && this.racerCount() < TRACK.spawns.length) {
+    while (this.bots.size < count && this.racerCount() < this.track.spawns.length) {
       const id = this.nextId++
-      const spawn = TRACK.spawns[this.racerCount() % TRACK.spawns.length]
+      const spawn = this.track.spawns[this.racerCount() % this.track.spawns.length]
       const index = this.bots.size
       const name = `BOT ${index + 1}`
-      const car = new CarSim(id, name, this.world.createVehicle(spawn.pos, spawn.yaw), spawn)
+      const car = new CarSim(id, name, this.world.createVehicle(spawn.pos, spawn.yaw), spawn, this.track)
       this.bots.set(id, {
         id,
         name,
         car,
         connection: null,
-        driver: new BotDriver(BOT_SKILLS[index % BOT_SKILLS.length])
+        driver: new BotDriver(BOT_SKILLS[index % BOT_SKILLS.length], this.track.centreline)
       })
       this.events.push({ t: 'join', id, name })
     }
@@ -370,7 +405,7 @@ export class Room {
 
   /** Drops bots that no longer fit once a human takes a grid slot. */
   private trimBots(): void {
-    while (this.racerCount() > TRACK.spawns.length && this.bots.size > 0) this.removeLastBot()
+    while (this.racerCount() > this.track.spawns.length && this.bots.size > 0) this.removeLastBot()
   }
 
   // --- Tick ----------------------------------------------------------------
@@ -476,7 +511,7 @@ export class Room {
           return
         }
         if (this.startRequested) {
-          this.beginCountdown(nowMs)
+          this.beginRace(nowMs)
           return
         }
         // Nothing starts by itself. Multiplayer holds the door open for a while first;
@@ -520,12 +555,66 @@ export class Room {
           // A fresh door for the next race, so the field can change between them.
           this.joinWindowEndsMs = nowMs + RACE.joinWindowMs
           for (const p of this.players.values()) p.ready = false
+          this.votes.clear()
           this.resetGrid(nowMs)
           this.playersDirty = true
         }
         return
       }
     }
+  }
+
+  /**
+   * START: count the vote, move the room to the winner and go straight to the countdown
+   * with the cars on the new grid. The track event goes out before the phase does, so
+   * every client can say which circuit it is, and whether a draw picked it, as the
+   * countdown begins.
+   */
+  private beginRace(nowMs: number): void {
+    const { track, votes, tie } = this.countVotes()
+    this.votes.clear()
+    if (track !== this.track.base) this.changeTrack(trackById(track))
+    this.events.push({ t: 'track', track, votes, tie })
+    this.beginCountdown(nowMs)
+  }
+
+  /** Most votes wins; nobody voting keeps the circuit; a draw is settled at random. */
+  private countVotes(): { track: TrackId; votes: VoteCount; tie: boolean } {
+    const votes = this.tally()
+    let most = 0
+    for (const id of TRACK_IDS) most = Math.max(most, votes[id] ?? 0)
+    if (most === 0) return { track: this.track.base, votes, tie: false }
+    const leaders = TRACK_IDS.filter((id) => votes[id] === most)
+    // The only Math.random in the race, and it stays on the server: the clients learn the
+    // result from the `track` event and never have to agree on a roll.
+    const track = leaders[Math.floor(Math.random() * leaders.length)]
+    return { track, votes, tie: leaders.length > 1 }
+  }
+
+  private tally(): VoteCount {
+    const votes: VoteCount = {}
+    for (const track of this.votes.values()) votes[track] = (votes[track] ?? 0) + 1
+    return votes
+  }
+
+  /**
+   * Moves the room to another circuit. A Rapier world cannot swap its colliders, so this is
+   * a new world, and every car in the room — spectators' parked ones too — gets a chassis
+   * in it. The caller puts the racers on the grid.
+   */
+  private changeTrack(track: Track): void {
+    const old = this.world
+    this.track = track
+    this.checkpoints = checkpointsOf(track)
+    this.world = createWorld(track)
+    let slot = 0
+    for (const racer of [...this.players.values(), ...this.bots.values()]) {
+      const spawn = track.spawns[slot++ % track.spawns.length]
+      racer.car.setTrack(track, this.world.createVehicle(spawn.pos, spawn.yaw))
+      racer.driver?.follow(track.centreline)
+    }
+    for (const player of this.players.values()) if (player.spectator) this.park(player)
+    old.dispose()
   }
 
   private beginCountdown(nowMs: number): void {
@@ -539,7 +628,7 @@ export class Room {
   private resetGrid(nowMs: number): void {
     let slot = 0
     for (const racer of this.racers()) {
-      const spawn = TRACK.spawns[slot % TRACK.spawns.length]
+      const spawn = this.track.spawns[slot % this.track.spawns.length]
       racer.car.resetForRace(spawn, nowMs)
       racer.driver?.reset()
       slot++
@@ -566,7 +655,7 @@ export class Room {
   }
 
   private distanceToNextCheckpoint(racer: Racer): number {
-    const next = CHECKPOINTS[(racer.car.cp + 1) % CHECKPOINTS.length]
+    const next = this.checkpoints[(racer.car.cp + 1) % this.checkpoints.length]
     const p = racer.car.vehicle.position()
     return Math.hypot(next.pos.x - p.x, next.pos.y - p.y, next.pos.z - p.z)
   }
@@ -579,7 +668,9 @@ export class Room {
       laps: this.laps,
       mode: this.mode,
       bots: this.botCount,
-      joining: this.mode === 'multiplayer' && this.phase === 'lobby' && this.phaseEndsMs > 0
+      joining: this.mode === 'multiplayer' && this.phase === 'lobby' && this.phaseEndsMs > 0,
+      track: this.track.base,
+      votes: this.phase === 'lobby' ? this.tally() : {}
     }
   }
 

@@ -22,7 +22,8 @@ import { AudioSource, engine, Entity, Transform } from '@dcl/sdk/ecs'
 import { CAR } from '../../shared/constants'
 import { quatRotate } from '../../shared/math'
 import { CarFlag } from '../../shared/protocol'
-import { DRIVABLE_HALF_WIDTH, lineOffset } from '../../shared/track'
+import { DRIVABLE_HALF_WIDTH, lineOffset } from '../../shared/tracks'
+import { activeTrack } from './active-track'
 import type { SampledCar } from './net/snapshot-buffer'
 
 const CLIPS = {
@@ -103,7 +104,7 @@ function create(root: Entity): CarAudio {
 const lineHint = new Map<number, number>()
 
 function offTrack(car: SampledCar): boolean {
-  const { distance, index } = lineOffset(car.pos, lineHint.get(car.id) ?? 0)
+  const { distance, index } = lineOffset(activeTrack(), car.pos, lineHint.get(car.id) ?? 0)
   lineHint.set(car.id, index)
   return distance > DRIVABLE_HALF_WIDTH
 }

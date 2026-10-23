@@ -11,7 +11,7 @@
 import RAPIER from '@dimforge/rapier3d-compat'
 import { CAR, GRAVITY, TICK_DT } from '../../../shared/constants'
 import { quatFromEulerDegrees, type Quat, type Vec3 } from '../../../shared/math'
-import { TRACK } from '../../../shared/track'
+import type { Track } from '../../../shared/tracks'
 import type { PhysicsWorld, Vehicle, WheelState } from './types'
 
 let initialised = false
@@ -205,14 +205,14 @@ export class RapierWorld implements PhysicsWorld {
   readonly engineName = 'rapier3d'
   private readonly world: RAPIER.World
 
-  constructor() {
+  constructor(track: Track) {
     if (!initialised) throw new Error('initRapier() must be awaited before creating a RapierWorld')
     this.world = new RAPIER.World({ x: 0, y: GRAVITY, z: 0 })
     this.world.timestep = TICK_DT
-    this.buildTrack()
+    this.buildTrack(track)
   }
 
-  private buildTrack(): void {
+  private buildTrack(track: Track): void {
     // All static geometry hangs off a single fixed body: one island, no per-piece overhead.
     const staticBody = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed())
     const add = (pos: Vec3, size: Vec3, rot: [number, number, number], friction: number) => {
@@ -225,8 +225,8 @@ export class RapierWorld implements PhysicsWorld {
         staticBody
       )
     }
-    for (const s of TRACK.surfaces) add(s.pos, s.size, s.rot, s.friction)
-    for (const o of TRACK.obstacles) add(o.pos, o.size, o.rot, 0.6)
+    for (const s of track.surfaces) add(s.pos, s.size, s.rot, s.friction)
+    for (const o of track.obstacles) add(o.pos, o.size, o.rot, 0.6)
   }
 
   createVehicle(pos: Vec3, yaw: number): Vehicle {
@@ -239,5 +239,10 @@ export class RapierWorld implements PhysicsWorld {
 
   step(): void {
     this.world.step()
+  }
+
+  dispose(): void {
+    // The world lives in wasm memory, which the garbage collector cannot see.
+    this.world.free()
   }
 }

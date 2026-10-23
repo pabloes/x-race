@@ -9,6 +9,7 @@
     "scene": "npm --prefix scene start",
     "harness": "npm --prefix server run harness",
     "test:features": "npm --prefix server run test:features",
+    "test:decor": "npm --prefix server run test:decor",
     "bot": "npm --prefix server run bot",
     "typecheck": "npm --prefix server run typecheck && npm --prefix scene run build",
     "pack:server": "rm -f caprover.tar && tar -cf caprover.tar --exclude='./caprover.tar' --exclude='./node_modules' --exclude='./*/node_modules' --exclude='./scene' --exclude='./.git' --exclude='./.idea' --exclude='./server/dist' ."

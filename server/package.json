@@ -11,7 +11,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "bot": "tsx src/test-client.ts",
     "harness": "tsx src/harness.ts",
-    "test:features": "tsx src/feature-tests.ts"
+    "test:features": "tsx src/feature-tests.ts",
+    "test:decor": "tsx src/decor-check.ts"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.14.0",

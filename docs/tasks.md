@@ -31,3 +31,17 @@ al empezar y al terminar; el coordinador integra.
 - Kit low-poly; decoración por sectores que se enciende y apaga según distancia y mirada.
 - Votación: un voto por jugador, cambiable, abstenciones no cuentan, empate al azar.
 - Cinemática: 12 s, saltable por jugador, sincronizada por fase de sala.
+
+## Notas de Núcleo (T1 a T3)
+
+- `TrackId` es solo `'city'` hasta que exista `skyline.ts`: Mapa 2 lo amplía en `types.ts`,
+  lo registra en `TRACKS` (`shared/tracks/index.ts`) y trae sus escenarios en
+  `server/src/scenarios/` (el registro `SCENARIOS` exige uno por circuito).
+- Las features nuevas (`gap`, `tunnel`, `corkscrew`, `bigramp`) y la altura de vértice lanzan
+  "not built yet" en el generador; cada una necesita su entrada en `SPAN`.
+- `shared/cinematic.ts` solo trae el tipo `Shot`; `Track.intro` es `[]` mientras falte
+  `defaultIntro`. El enganche de `playIntro` está comentado en `renderSystem` (`scene/src/index.ts`).
+- Minimapa por circuito: `MINIMAPS` en `ui.tsx`; sin placa, panel liso. `make-minimap.py`
+  escribe siempre `images/minimap.png`, así que un segundo circuito necesita que el script
+  acepte el nombre de salida.
+- `protocolVersion` pasa a 2: servidor y escena se despliegan juntos.

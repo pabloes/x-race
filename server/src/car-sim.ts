@@ -22,16 +22,20 @@ import {
   type Vec3
 } from '../../shared/math'
 import { CarFlag, hasBit, InputBit, steerAxis, type CarState, type GameEvent } from '../../shared/protocol'
-import { CHECKPOINTS, DRIVABLE_HALF_WIDTH, lineOffset, respawnFor, TRACK, type Trigger } from '../../shared/track'
+import {
+  checkpointsOf,
+  DRIVABLE_HALF_WIDTH,
+  lineOffset,
+  respawnFor,
+  type Track,
+  type Trigger
+} from '../../shared/tracks'
 import type { Vehicle } from './physics/types'
 import { pointInBox } from './geometry'
 
 const UP: Vec3 = { x: 0, y: 1, z: 0 }
 const FORWARD: Vec3 = { x: 0, y: 0, z: 1 }
 const RIGHT: Vec3 = { x: 1, y: 0, z: 0 }
-
-const BOOST_TRIGGERS = TRACK.triggers.filter((t) => t.kind === 'boost')
-const INVERT_TRIGGERS = TRACK.triggers.filter((t) => t.kind === 'invert')
 
 /** A scripted rotation: the car keeps flying ballistically while its orientation is driven. */
 type Trick = {
@@ -48,7 +52,12 @@ type Trick = {
 }
 
 export class CarSim {
-  readonly vehicle: Vehicle
+  vehicle: Vehicle
+  /** The circuit and what this car tests against every tick, kept apart from the Track. */
+  private track!: Track
+  private checkpoints: Trigger[] = []
+  private boostTriggers: Trigger[] = []
+  private invertTriggers: Trigger[] = []
 
   charge: number = CHARGE.initial
   lap = 0
@@ -88,9 +97,24 @@ export class CarSim {
     readonly id: number,
     public name: string,
     vehicle: Vehicle,
-    private readonly spawn: { pos: Vec3; yaw: number }
+    private spawn: { pos: Vec3; yaw: number },
+    track: Track
   ) {
     this.vehicle = vehicle
+    this.setTrack(track, vehicle)
+  }
+
+  /**
+   * Moves the car onto another circuit: a new circuit is a new physics world, so the
+   * chassis comes with it. Progress is the caller's to reset with `resetForRace`.
+   */
+  setTrack(track: Track, vehicle: Vehicle): void {
+    this.track = track
+    this.vehicle = vehicle
+    this.checkpoints = checkpointsOf(track)
+    this.boostTriggers = track.triggers.filter((t) => t.kind === 'boost')
+    this.invertTriggers = track.triggers.filter((t) => t.kind === 'invert')
+    this.lineIndex = 0
   }
 
   setInput(bits: number): void {
@@ -99,6 +123,8 @@ export class CarSim {
 
   /** Puts the car back on the grid and clears all per-race progress. */
   resetForRace(spawn: { pos: Vec3; yaw: number }, nowMs: number): void {
+    // Kept, so a respawn before the first checkpoint goes back to this grid slot.
+    this.spawn = spawn
     this.vehicle.reset(spawn.pos, spawn.yaw)
     this.charge = CHARGE.initial
     this.lap = 0
@@ -142,7 +168,7 @@ export class CarSim {
       v.setBrake(CAR.handbrakeForce)
       v.setSteering(0)
       if (this.respawnMs <= 0) {
-        const point = this.cpTotal < 0 ? this.spawn : respawnFor(this.cp)
+        const point = this.cpTotal < 0 ? this.spawn : respawnFor(this.track, this.cp)
         // Lanes, not a single point. Two cars that go off at the same checkpoint otherwise
         // respawn inside each other, wedge, trip the stuck detector and respawn again —
         // seen in the harness as two cars sitting on the same metre for a whole race with
@@ -184,7 +210,7 @@ export class CarSim {
     // Where the car is relative to the racing line, kept from tick to tick so the search
     // starts next to the answer. Off the asphalt the car gets gravel: less grip, less
     // engine and a drag that scales with speed.
-    const line = lineOffset(pos, this.lineIndex)
+    const line = lineOffset(this.track, pos, this.lineIndex)
     this.lineIndex = line.index
     const offTrack = line.distance > DRIVABLE_HALF_WIDTH
 
@@ -192,7 +218,7 @@ export class CarSim {
     // battery earns.
     const slipAngle = Math.abs(Math.atan2(vdot(linvel, localRight), vdot(linvel, localForward)))
 
-    const inInvertZone = INVERT_TRIGGERS.some((t) => pointInBox(pos, t))
+    const inInvertZone = this.invertTriggers.some((t) => pointInBox(pos, t))
     if (inInvertZone && !this.inverted && !this.grounded && !this.trick) {
       // The Roadster move: half-roll onto the ceiling and let inverted gravity hold it there.
       this.startTrick('Roadster Flip', rot, localForward, Math.PI, 0.35, CHARGE.invertReward, 0)
@@ -215,7 +241,7 @@ export class CarSim {
       }
     }
 
-    for (const pad of BOOST_TRIGGERS) {
+    for (const pad of this.boostTriggers) {
       const until = this.padCooldown.get(pad.id) ?? 0
       if (nowMs >= until && pointInBox(pos, pad)) {
         this.padCooldown.set(pad.id, nowMs + 2000)
@@ -476,7 +502,7 @@ export class CarSim {
     this.wasGrounded = this.grounded
 
     // --- Recovery ---
-    if (pos.y < RACE.killY || pos.y > TRACK.extent) {
+    if (pos.y < RACE.killY || pos.y > this.track.extent) {
       this.requestRespawn()
     }
     const uprightDot = vdot(localUp, UP) * (this.inverted ? -1 : 1)
@@ -500,8 +526,8 @@ export class CarSim {
 
     // --- Checkpoints ---
     if (racing && !this.finished) {
-      const next = (this.cp + 1) % CHECKPOINTS.length
-      if (pointInBox(pos, CHECKPOINTS[next])) {
+      const next = (this.cp + 1) % this.checkpoints.length
+      if (pointInBox(pos, this.checkpoints[next])) {
         this.cp = next
         this.cpTotal++
         events.push({ t: 'cp', id: this.id, cp: next })
@@ -525,9 +551,9 @@ export class CarSim {
 
   /** Counts obstacles flown over, for the charge reward on landing. */
   private trackClearedObstacles(pos: Vec3): void {
-    for (let i = 0; i < TRACK.obstacles.length; i++) {
+    for (let i = 0; i < this.track.obstacles.length; i++) {
       if (this.clearedObstacles.has(i)) continue
-      const o = TRACK.obstacles[i]
+      const o = this.track.obstacles[i]
       const top = o.pos.y + o.size.y / 2
       if (
         pos.y > top &&
@@ -580,7 +606,7 @@ export class CarSim {
 
   /** How far around the lap this car is, used to sort the standings. */
   progress(): number {
-    return this.lap * CHECKPOINTS.length + (this.cp + 1)
+    return this.lap * this.checkpoints.length + (this.cp + 1)
   }
 
   toState(): CarState {
@@ -611,9 +637,4 @@ export class CarSim {
       score: this.score
     }
   }
-}
-
-/** Exposed for the tuning harness. */
-export function checkpointAt(index: number): Trigger {
-  return CHECKPOINTS[index % CHECKPOINTS.length]
 }

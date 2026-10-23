@@ -1,7 +1,11 @@
 /**
- * Builds the visible circuit from the same `TRACK` data the server turns into colliders,
- * so what you see is exactly what the physics uses. Every piece is a scaled box: no
- * glTF assets are needed and the scene loads instantly.
+ * Builds the visible circuit from the same `Track` data the server turns into colliders,
+ * so what you see is exactly what the physics uses. The road is scaled boxes; the
+ * scenery (buildings, barriers, gates, trees...) is the kit's GLB pieces, placed and
+ * streamed by decor.ts.
+ *
+ * When the room switches circuit the whole thing is torn down with `clearTrack()` and
+ * built again from the new one; the decoration kit hooks into the same two calls.
  *
  * Decentraland colliders are added only to the drivable surfaces, which lets a player on
  * foot walk the circuit while they are not driving. The parcel-wide `ground` surface is
@@ -19,10 +23,13 @@ import {
   Transform
 } from '@dcl/sdk/ecs'
 import { Color4, Quaternion } from '@dcl/sdk/math'
-import { TRACK, type Surface, type SurfaceKind } from '../../shared/track'
+import type { Surface, SurfaceKind, Track } from '../../shared/tracks'
+import { clearDecor, decorate } from './decor'
 
 /** Metres of ground covered by one repeat of the gravel texture. */
 const GRAVEL_TILE = 4
+/** The grid the generator cuts holes in the floor on (its `GROUND_TILE`). */
+const HOLE_TILE = 8
 /** Surfaces that get the asphalt texture rather than flat colour. */
 const PAVED: SurfaceKind[] = ['road', 'ramp']
 
@@ -38,40 +45,43 @@ const PALETTE: Record<SurfaceKind, Color4> = {
   building: Color4.create(0.13, 0.14, 0.18, 1)
 }
 
-/** A few window tints, picked per building so the skyline is not one flat colour. */
-const FACADES = [
-  Color4.create(0.13, 0.14, 0.18, 1),
-  Color4.create(0.17, 0.16, 0.2, 1),
-  Color4.create(0.11, 0.15, 0.19, 1),
-  Color4.create(0.16, 0.13, 0.16, 1)
-]
-
 /** Surfaces a car drives on also get a collider so an avatar on foot can walk them. */
 const WALKABLE: SurfaceKind[] = ['road', 'ramp', 'startline']
 
-function spawnSurface(surface: Surface, index: number): Entity {
+/** Every entity the current circuit is drawn with, so it can be taken down in one go. */
+let built: Entity[] = []
+
+function addEntity(): Entity {
   const entity = engine.addEntity()
+  built.push(entity)
+  return entity
+}
+
+function spawnSurface(surface: Surface): Entity {
+  const entity = addEntity()
   Transform.create(entity, {
     position: surface.pos,
     scale: surface.size,
     rotation: Quaternion.fromEulerDegrees(surface.rot[0], surface.rot[1], surface.rot[2])
   })
-  MeshRenderer.setBox(entity)
   const isBuilding = surface.kind === 'building'
+  // A building is drawn by its kit piece (decor.ts), which is exactly this box; the box
+  // stays here as the collider only.
+  if (isBuilding) {
+    MeshCollider.setBox(entity, ColliderLayer.CL_PHYSICS)
+    return entity
+  }
+  MeshRenderer.setBox(entity)
   const paved = PAVED.indexOf(surface.kind) !== -1
   Material.setPbrMaterial(entity, {
-    albedoColor: isBuilding ? FACADES[index % FACADES.length] : PALETTE[surface.kind],
+    albedoColor: PALETTE[surface.kind],
     texture: paved
       ? Material.Texture.Common({ src: 'images/asphalt.png', wrapMode: TextureWrapMode.TWM_REPEAT })
       : undefined,
-    emissiveColor: isBuilding ? Color4.create(0.05, 0.08, 0.14, 1) : undefined,
-    emissiveIntensity: isBuilding ? 0.35 : 0,
     roughness: surface.kind === 'startline' ? 0.9 : paved ? 0.95 : 0.6,
-    metallic: isBuilding ? 0.3 : 0.1
+    metallic: 0.1
   })
-  // Buildings are solid: they are what stops a car cutting across the infield, so they
-  // need a collider on the server *and* here, where an avatar on foot can hit them too.
-  if (isBuilding || WALKABLE.indexOf(surface.kind) !== -1) {
+  if (WALKABLE.indexOf(surface.kind) !== -1) {
     MeshCollider.setBox(entity, ColliderLayer.CL_PHYSICS)
   }
   return entity
@@ -80,26 +90,54 @@ function spawnSurface(surface: Surface, index: number): Entity {
 /**
  * The gravel everything that is not circuit sits on.
  *
- * One plane across the whole parcel block with the texture repeated every few metres,
- * rather than the explorer's default parcel floor: off the asphalt the car is on gravel,
+ * Planes across the parcel block with the texture repeated every few metres, rather than
+ * the explorer's default parcel floor: off the asphalt the car is on gravel,
  * and it should look like gravel before it starts behaving like it. The plane is laid a
  * centimetre above the ground collider, which is itself a centimetre below the asphalt,
  * so the road slabs still read as slabs with an edge.
  */
-function buildGround(): void {
-  const entity = engine.addEntity()
-  const repeats = TRACK.extent / GRAVEL_TILE
+function buildGround(track: Track): void {
+  // One plane per floor box: where the circuit runs high the server's floor has holes, so
+  // that a car going off a rooftop falls out of the world, and gravel drawn over them would
+  // show it sinking through solid ground. The holes are drawn as dark shafts instead.
+  const floor = track.surfaces.filter((s) => s.kind === 'ground')
+  for (const s of floor) floorPlane(s.pos.x, s.pos.z, s.size.x, s.size.z, true)
+  if (floor.length < 2) return
+  const covered = (x: number, z: number): boolean =>
+    floor.some((s) => Math.abs(x - s.pos.x) <= s.size.x / 2 && Math.abs(z - s.pos.z) <= s.size.z / 2)
+  // The generator cuts the floor on this grid, from the corner of the parcel block.
+  for (let z = 0; z < track.extent; z += HOLE_TILE) {
+    let start = -1
+    for (let x = 0; x <= track.extent; x += HOLE_TILE) {
+      const open = x < track.extent && !covered(x + HOLE_TILE / 2, z + HOLE_TILE / 2)
+      if (open && start < 0) start = x
+      if (!open && start >= 0) {
+        floorPlane((start + x) / 2, z + HOLE_TILE / 2, x - start, HOLE_TILE, false)
+        start = -1
+      }
+    }
+  }
+}
+
+/** A horizontal plane just over the floor collider: gravel, or the dark of a hole. */
+function floorPlane(x: number, z: number, width: number, depth: number, gravel: boolean): void {
+  const entity = addEntity()
   Transform.create(entity, {
-    position: { x: TRACK.extent / 2, y: 0.01, z: TRACK.extent / 2 },
-    scale: { x: TRACK.extent, y: TRACK.extent, z: 1 },
+    position: { x, y: 0.01, z },
+    scale: { x: width, y: depth, z: 1 },
     rotation: Quaternion.fromEulerDegrees(90, 0, 0)
   })
+  if (!gravel) {
+    MeshRenderer.setPlane(entity)
+    Material.setPbrMaterial(entity, { albedoColor: Color4.create(0.01, 0.01, 0.015, 1), roughness: 1, metallic: 0 })
+    return
+  }
   // A plane's uvs are given per face, front then back; scaling them past 1 is what tiles
-  // the texture instead of stretching one copy over half a kilometre.
-  const uvs = [
-    0, 0, repeats, 0, repeats, repeats, 0, repeats,
-    0, 0, repeats, 0, repeats, repeats, 0, repeats
-  ]
+  // the texture instead of stretching one copy over half a kilometre. The floor boxes start
+  // on whole tiles, so the gravel runs on across their joins.
+  const u = width / GRAVEL_TILE
+  const v = depth / GRAVEL_TILE
+  const uvs = [0, 0, u, 0, u, v, 0, v, 0, 0, u, 0, u, v, 0, v]
   MeshRenderer.setPlane(entity, uvs)
   Material.setPbrMaterial(entity, {
     texture: Material.Texture.Common({ src: 'images/gravel.png', wrapMode: TextureWrapMode.TWM_REPEAT }),
@@ -108,75 +146,31 @@ function buildGround(): void {
   })
 }
 
-export function buildTrack(): void {
-  buildGround()
-  let index = 0
-  for (const surface of TRACK.surfaces) {
+export function buildTrack(track: Track): void {
+  buildGround(track)
+  for (const surface of track.surfaces) {
     if (surface.kind === 'ground') continue
-    spawnSurface(surface, index++)
+    spawnSurface(surface)
   }
 
-  for (const obstacle of TRACK.obstacles) {
-    const entity = engine.addEntity()
+  // The pillars, boost pads and checkpoint gates are kit pieces (decor.ts). What stays here
+  // is the pillars' collider, which the avatar on foot can hit.
+  for (const obstacle of track.obstacles) {
+    const entity = addEntity()
     Transform.create(entity, {
       position: obstacle.pos,
       scale: obstacle.size,
       rotation: Quaternion.fromEulerDegrees(obstacle.rot[0], obstacle.rot[1], obstacle.rot[2])
     })
-    MeshRenderer.setBox(entity)
-    Material.setPbrMaterial(entity, {
-      albedoColor: Color4.create(0.85, 0.35, 0.05, 1),
-      emissiveColor: Color4.create(0.4, 0.12, 0, 1),
-      emissiveIntensity: 0.4,
-      roughness: 0.7
-    })
     MeshCollider.setBox(entity, ColliderLayer.CL_PHYSICS)
   }
 
-  // Boost pads: flat glowing plates. No collider — the server owns the trigger.
-  for (const trigger of TRACK.triggers) {
-    if (trigger.kind !== 'boost') continue
-    const entity = engine.addEntity()
-    Transform.create(entity, {
-      position: { x: trigger.pos.x, y: 0.16, z: trigger.pos.z },
-      scale: { x: trigger.size.x, y: 0.08, z: trigger.size.z },
-      rotation: Quaternion.fromEulerDegrees(trigger.rot[0], trigger.rot[1], trigger.rot[2])
-    })
-    MeshRenderer.setBox(entity)
-    Material.setPbrMaterial(entity, {
-      albedoColor: Color4.create(0.1, 0.8, 1, 1),
-      emissiveColor: Color4.create(0.1, 0.7, 1, 1),
-      emissiveIntensity: 2
-    })
-  }
+  decorate(track)
+}
 
-  // Checkpoint gates: two uprights per checkpoint, so the racing line is readable from
-  // the car without drawing a solid wall across the track.
-  for (const trigger of TRACK.triggers) {
-    if (trigger.kind !== 'checkpoint') continue
-    const yaw = trigger.rot[1]
-    const rad = (yaw * Math.PI) / 180
-    // The trigger's local X runs across the track; offset the posts along it.
-    const half = trigger.size.x / 2
-    const acrossX = Math.cos(rad) * half
-    const acrossZ = -Math.sin(rad) * half
-    for (const side of [-1, 1]) {
-      const post = engine.addEntity()
-      Transform.create(post, {
-        position: {
-          x: trigger.pos.x + acrossX * side,
-          y: trigger.pos.y - trigger.size.y / 2 + 2,
-          z: trigger.pos.z + acrossZ * side
-        },
-        scale: { x: 0.5, y: 4, z: 0.5 },
-        rotation: Quaternion.fromEulerDegrees(0, yaw, 0)
-      })
-      MeshRenderer.setBox(post)
-      Material.setPbrMaterial(post, {
-        albedoColor: trigger.index === 0 ? Color4.create(1, 0.9, 0.2, 1) : Color4.create(0.2, 0.9, 0.5, 1),
-        emissiveColor: trigger.index === 0 ? Color4.create(0.8, 0.6, 0, 1) : Color4.create(0, 0.5, 0.3, 1),
-        emissiveIntensity: 1.2
-      })
-    }
-  }
+/** Removes everything `buildTrack` drew, ready for another circuit. */
+export function clearTrack(): void {
+  clearDecor()
+  for (const entity of built) engine.removeEntity(entity)
+  built = []
 }

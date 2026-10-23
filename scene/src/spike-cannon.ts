@@ -23,7 +23,7 @@
 import { engine } from '@dcl/sdk/ecs'
 import * as CANNON from 'cannon-es'
 import { CAR, TICK_DT } from '../../shared/constants'
-import { TRACK } from '../../shared/track'
+import { activeTrack } from './active-track'
 import { hud } from './ui'
 
 /**
@@ -65,9 +65,9 @@ function buildWorld(): Spike {
   // a 30 m slab of straight with three pieces of asphalt around it, which is below the
   // median for the lap: measuring there would answer an easier question than the one
   // being asked. Point 176 carries 16 surfaces within the radius, the most of any.
-  const spawn = { pos: TRACK.centreline[176], yaw: 0 }
+  const spawn = { pos: activeTrack().centreline[176].pos, yaw: 0 }
   let added = 0
-  for (const surface of TRACK.surfaces) {
+  for (const surface of activeTrack().surfaces) {
     if (surface.kind === 'ground') continue
     const dx = surface.pos.x - spawn.pos.x
     const dz = surface.pos.z - spawn.pos.z
@@ -189,8 +189,8 @@ function system(dt: number): void {
     // Straight onto the HUD: the scene's console does not reach the terminal running the
     // preview, and the whole point of this file is a number someone can read.
     hud.spike =
-      `cannon ${perStep.toFixed(2)} ms/paso · rollback ${perRollback.toFixed(2)} ms · ` +
-      `${budget.toFixed(1)}% CPU · ${s.boxes} cajas`
+      `cannon ${perStep.toFixed(2)} ms/step · rollback ${perRollback.toFixed(2)} ms · ` +
+      `${budget.toFixed(1)}% CPU · ${s.boxes} boxes`
     console.log(`[spike] ${hud.spike} · ${(s.frames / s.elapsed).toFixed(0)} fps`)
     s.stepMs = 0
     s.stepCount = 0
@@ -207,7 +207,7 @@ export function startCannonSpike(): void {
     spike = buildWorld()
     engine.addSystem(system, 1)
   } catch (error) {
-    hud.spike = 'cannon-es NO arranca en la escena'
+    hud.spike = 'cannon-es does NOT start in the scene'
     console.log(`[spike] cannon-es NO arranca en el runtime de la escena: ${String(error)}`)
   }
 }

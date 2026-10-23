@@ -16,17 +16,20 @@ import { engine } from '@dcl/sdk/ecs'
 import { SNAPSHOT_RATE, TICK_RATE } from '../../shared/constants'
 import { vlen } from '../../shared/math'
 import { CarFlag, InputBit, type GameEvent, type PlayerInfo, type Standing } from '../../shared/protocol'
+import { isTrackId, trackById } from '../../shared/tracks'
+import { activeCheckpoints, activeTrack, setActiveTrack } from './active-track'
 import { cheer, forgetMissing, updateCarAudio } from './audio'
-import { CHECKPOINTS } from '../../shared/track'
 import { carRoot, dropMissing, parkCar, renderCar, setDriverNames } from './car'
 import { updateSkidmarks } from './skidmarks'
 import { detach, follow } from './camera'
+import { updateFlyover } from './cinematic'
 import { playerIdentity, serverUrl } from './config'
 import { dropBoost, readInputBits, respawnPressed } from './input'
 import { Connection } from './net/connection'
 import { SPIKE_CANNON, startCannonSpike } from './spike-cannon'
 import { detectPlatform } from './platform'
-import { buildTrack } from './track-render'
+import { setDecorFocus } from './decor'
+import { buildTrack, clearTrack } from './track-render'
 import { hud, menu, setupUi } from './ui'
 
 /**
@@ -44,13 +47,16 @@ let localNow = 0
 let players: PlayerInfo[] = []
 /** This frame's own input bits, kept for the sounds that have no flag on the wire. */
 let inputBits = 0
-
 const connection = new Connection({
   onEvents: handleEvents,
   onPlayers: (list) => {
     players = list
     const me = list.find((p) => p.id === connection.playerId)
     hud.spectator = me?.spectator === true
+    // The lobby card's roster: everyone who would drive, bots included, and who is ready.
+    const drivers = list.filter((p) => !p.spectator)
+    hud.pilots = drivers.length
+    hud.ready = drivers.filter((p) => p.ready).length
     setDriverNames(list, connection.playerId)
   },
   onStandings: (list) => {
@@ -101,6 +107,14 @@ function handleEvents(events: GameEvent[]): void {
         hud.standings = event.standings
         hud.bigMessage = podiumText(event.standings)
         break
+      case 'track':
+        // The vote has been counted. Said out loud when a draw decided it, because
+        // otherwise a circuit nobody seems to have picked just appears.
+        if (isTrackId(event.track)) {
+          const name = trackById(event.track).name
+          if (event.tie) toast(`${name}, BY DRAW`, 3500)
+        }
+        break
     }
   }
 }
@@ -139,8 +153,22 @@ function renderSystem(dt: number): void {
   }
 
   const mine = cars.get(connection.playerId)
+  // In the lobby, behind the open menu, the camera flies the circuit; with the menu folded
+  // it is the avatar's. From START on, the chase takes over from the flyover with a 1 s blend.
+  const inLobby = hud.phase === 'lobby'
+  const flyover = updateFlyover(
+    inLobby && hud.connected && !hud.spectator,
+    !hud.menuMinimised,
+    activeTrack(),
+    dt
+  )
+  // The flyover moves the camera, so the scenery follows it rather than the parked car.
+  setDecorFocus(mine ? { x: mine.pos.x, z: mine.pos.z } : null, flyover)
   if (mine) {
-    follow(mine, dt)
+    if (!flyover) {
+      if (inLobby) detach()
+      else follow(mine, dt)
+    }
     hud.speedKmh = vlen(mine.vel) * 3.6 * SPEEDO_EXAGGERATION
     hud.charge = mine.charge
     // Empty battery: the car has already stopped boosting, so stop asking for it too.
@@ -152,14 +180,15 @@ function renderSystem(dt: number): void {
     hud.checkpoint = mine.cp + 1
     // Checkpoints are mandatory and in order, so "next" is simply the one after the last
     // one taken, wrapping back to the start line at the end of a lap.
-    const next = (mine.cp + 1) % CHECKPOINTS.length
+    const checkpoints = activeCheckpoints()
+    const next = (mine.cp + 1) % checkpoints.length
     hud.nextCheckpoint = {
-      x: CHECKPOINTS[next].pos.x,
-      z: CHECKPOINTS[next].pos.z,
-      label: `${next + 1}/${CHECKPOINTS.length}`
+      x: checkpoints[next].pos.x,
+      z: checkpoints[next].pos.z,
+      label: `${next + 1}/${checkpoints.length}`
     }
   } else {
-    detach()
+    if (!flyover) detach()
     hud.nextCheckpoint = null
   }
   hud.drivers = cars.size > 0 ? cars.size : players.length
@@ -189,6 +218,18 @@ function hudSystem(dt: number): void {
         : 'connecting to race server…'
 
   if (race) {
+    // The room switched circuit: take the old one down and draw the new one. Compared by
+    // id rather than on the `track` event, so a player who joins after the switch, or
+    // misses the event, still ends up on the circuit the room is racing on.
+    if (isTrackId(race.track) && setActiveTrack(race.track)) {
+      clearTrack()
+      buildTrack(activeTrack())
+      hud.checkpoints = activeTrack().checkpointCount
+      hud.track = race.track
+    }
+    hud.votes = race.votes ?? {}
+    // A vote lives for one lobby, on the server and so here.
+    if (race.phase !== 'lobby') hud.myVote = null
     hud.phase = race.phase
     hud.phaseMs = race.phaseMs
     hud.raceTimeMs = race.timeMs
@@ -217,11 +258,12 @@ function hudSystem(dt: number): void {
 export function main(): void {
   // Asked once: it decides whether the on-screen driving controls exist at all.
   void detectPlatform()
-  buildTrack()
+  buildTrack(activeTrack())
   // A Roadster parked on the gravel beside the grid, where the avatar arrives (the
-  // `paddock` spawn point in scene.json), nose towards the newcomer. On the gravel plane,
-  // which sits a centimetre up, so the wheels rest on it rather than in it.
-  parkCar({ x: 255.5, y: 0.66, z: 46.5 }, 275)
+  // `paddock` spawn point in scene.json), nose towards the newcomer and a touch towards the
+  // track. On the far side of the straight from the grandstands, which hid both. On the
+  // gravel plane, which sits a centimetre up, so the wheels rest on it rather than in it.
+  parkCar({ x: 255.5, y: 0.66, z: 72.5 }, 265)
   // Measurement only, on the cannon-prediction branch: see spike-cannon.ts. Off unless
   // it is being read, because a cannon world stepping in the scene thread is exactly the
   // sort of thing that makes the car feel late while you are trying to judge the car.
@@ -232,6 +274,11 @@ export function main(): void {
   menu.setMode = (mode) => connection.setMode(mode)
   menu.setBots = (count) => connection.setBots(count)
   menu.setLaps = (laps) => connection.setLaps(laps)
+  // Highlighted straight away: the server sends no confirmation, only the count.
+  menu.vote = (track) => {
+    hud.myVote = track
+    connection.vote(track)
+  }
   menu.start = () => connection.startRace()
   menu.leaveRace = () => connection.leaveRace()
   menu.setSpectator = (on) => connection.spectate(on)
