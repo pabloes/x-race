@@ -30,7 +30,6 @@ export type FeatureKind =
   | 'start-jump'
   | 'jump'
   | 'ceiling'
-  // Generator pieces still to be written (Mapa 2).
   | 'gap'
   | 'tunnel'
   | 'corkscrew'
@@ -50,6 +49,8 @@ export type TrackDefinition = {
    * longest straight, a jump on it if it is long enough, the flip on the next one).
    */
   features?: FeatureKind[]
+  /** Metres of missing road in every `gap`; 18 if missing. */
+  gapLength?: number
   /** Flyover for the `intro` phase. Missing: the generic one built from the track. */
   intro?: Shot[]
 }

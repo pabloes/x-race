@@ -11,7 +11,7 @@ import { buildTrack } from './generator'
 import type { Track, TrackId } from './types'
 
 export * from './types'
-export { checkpointsOf, DRIVABLE_HALF_WIDTH, lineOffset, respawnFor } from './generator'
+export { checkpointsOf, DRIVABLE_HALF_WIDTH, lineOffset, respawnFor, spawnHeightAt } from './generator'
 
 export const TRACKS: Record<TrackId, Track> = {
   city: buildTrack(CITY)
