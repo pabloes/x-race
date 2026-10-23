@@ -64,13 +64,28 @@ Salida:
 - `stand`: el público mira a +Z.
 - `building-*`: la caja de la pieza es exactamente w × h × d (el ático de escaleras marca la altura).
 
-## Presupuesto actual (city)
+## Presupuesto actual
 
-21 piezas, 2592 triángulos en total (máximo 172 por pieza), 1 material por pieza. Texturas de
-64 × 64 a 512 × 512; el kit entero pesa 0,48 MB.
+city: 21 piezas, 2592 triángulos en total (máximo 172 por pieza), 1 material por pieza. Texturas
+de 64 × 64 a 512 × 512; el kit entero pesa 0,48 MB.
 
 ## Tema neon (T7)
 
-La paleta y los emisivos ya están en `themes.py` (`NEON`): los pintores piden roles y el tema
-decide si brillan. Faltan los constructores de `palm` y `hologram`; hasta entonces
-`--theme neon` se para con un aviso y no escribe nada.
+```bash
+/Applications/Blender.app/Contents/MacOS/Blender -b -P scene/tools/kit/build.py -- --theme neon
+```
+
+Las mismas piezas con la paleta nocturna de `themes.py` (`NEON`): cuerpos oscuros y emisivos fuertes
+en magenta y cian. `palm` sustituye a `tree-b` y `hologram` solo existe en este tema. Los renders
+se hacen de noche, más `compo-chase-day.jpg` para comprobarlo de día, porque el explorador lleva su
+propio reloj.
+
+- `palm`: ≈ 4,6 × 6,6 × 4,5 m, tronco inclinado hacia −X (la izquierda de la pieza), anillos
+  emisivos.
+- `hologram`: 8 × 12 × 0,5 m, un marco proyector que mira a ±Z. Es la única pieza con dos
+  materiales: el marco es opaco, y la proyección (`kit_neon_holo`) es la transparencia que el
+  contrato permite. Lleva una sola imagen RGBA para color, alfa y emisivo, sobre dos quads de una
+  cara puestos espalda con espalda, para que se lea bien por los dos lados. Sin el clip `loop`,
+  que el contrato marca como opcional.
+
+21 piezas, 2674 triángulos, 0,52 MB.

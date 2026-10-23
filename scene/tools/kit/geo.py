@@ -24,8 +24,8 @@ RIGHT = Vector((-1, 0, 0))
 class Swatch:
     """Flat colour: every corner of the face samples the centre of the role's swatch."""
 
-    def __init__(self, key):
-        self.key = key
+    def __init__(self, key, mat="main"):
+        self.key, self.mat = key, mat
 
 
 class Tile:
@@ -36,10 +36,11 @@ class Tile:
     piece front on tops). u / v: None = this face's own extent; (lo, hi) = fixed range along
     the axis in metres; for v a ('z', lo, hi) tuple maps world height instead (sloped faces);
     a float pins the coordinate. point=True samples one texel per face (faceted foliage).
+    mat names the material (and so the texture) the face belongs to.
     """
 
-    def __init__(self, name, u=None, v=None, flip_u=False, flip_v=False, point=False):
-        self.name, self.u, self.v = name, u, v
+    def __init__(self, name, u=None, v=None, flip_u=False, flip_v=False, point=False, mat="main"):
+        self.name, self.u, self.v, self.mat = name, u, v, mat
         self.flip_u, self.flip_v, self.point = flip_u, flip_v, point
 
 
@@ -180,19 +181,24 @@ class Piece:
         return [pa for _, pa in self.polys]
 
     # -------------------------------------------------------------- mesh
-    def to_mesh(self, atlas, material):
-        verts, faces, uvs = [], [], []
+    def to_mesh(self, atlases, materials):
+        """atlases / materials: dicts keyed by paint.mat."""
+        order = sorted(atlases, key=lambda m: (m != "main", m))
+        verts, faces, uvs, mat_idx = [], [], [], []
         for pts, paint in self.polys:
             idx = list(range(len(verts), len(verts) + len(pts)))
             verts.extend(tuple(p) for p in pts)
             faces.append(idx)
-            uvs.extend(face_uvs(pts, paint, atlas))
+            uvs.extend(face_uvs(pts, paint, atlases[paint.mat]))
+            mat_idx.append(order.index(paint.mat))
         me = bpy.data.meshes.new(self.name)
         me.from_pydata(verts, [], faces)
         uv = me.uv_layers.new(name="UVMap")
         for i, loop_uv in enumerate(uvs):
             uv.data[i].uv = loop_uv
-        me.materials.append(material)
+        for m in order:
+            me.materials.append(materials[m])
+        me.polygons.foreach_set("material_index", mat_idx)
         me.shade_flat()
         me.validate()
         me.update()

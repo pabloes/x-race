@@ -82,7 +82,7 @@ CITY = {
     "hair": ["#2a1f1a", "#4a3121", "#8a5a2b", "#d9b46a", "#1b1b1f"],
 }
 
-# T7: palette only; palm and hologram still need builders before `--theme neon` can run.
+# Night theme: dark bodies, glowing trims; palm replaces tree-b and the hologram is its own.
 NEON = {
     "name": "neon",
     "pieces": ["barrier", "kerb", "chevron", "gate-start", "gate-checkpoint", "lamp", "banner", "stand",
@@ -104,6 +104,8 @@ NEON = {
         "b0_wall": "#1d2030", "b0_trim": "#2a2e44", "b0_glass": "#1a2a55", "b0_glass_hi": "#3a5fa8", "b0_roof": "#15171f",
         "b1_wall": "#24202f", "b1_trim": "#352d45", "b1_glass": "#2a1c4a", "b1_glass_hi": "#6a3fa0", "b1_roof": "#15171f",
         "b2_wall": "#1a2530", "b2_trim": "#24364a", "b2_glass": "#10324a", "b2_glass_hi": "#2a7aa8", "b2_roof": "#15171f",
+        "palm_trunk": "#2b2230", "palm_ring": "#ff2bd6", "palm_leaf": "#0f4d4a",
+        "holo_frame": "#1b1d26", "holo_glow": "#21e6ff", "holo_accent": "#ff2bd6", "holo_bg": "#06222c",
     },
     "glow": {
         "barrier_b": "#ff2bd6", "kerb_b": "#21e6ff", "chevron_fg": "#ff2bd6",
@@ -112,6 +114,8 @@ NEON = {
         "flag_text": "#21e6ff", "stand_trim": "#ff2bd6", "board_a": "#ff2bd6", "board_b": "#21e6ff",
         "pad_light": "#21e6ff", "hazard_a": "#21e6ff", "beacon": "#ff2bd6",
         "window": ("#ff6be0", 0.8), "shop": ("#21e6ff", 0.8),
+        "palm_ring": ("#ff2bd6", 0.8), "palm_leaf": ("#14d8c4", 0.3),
+        "holo_glow": "#21e6ff", "holo_accent": "#ff2bd6",
     },
     "window_lit": 0.35,
     "awnings": ["#ff2bd6", "#21e6ff", "#8a5cff", "#ffb02e"],

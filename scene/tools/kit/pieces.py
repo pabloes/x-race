@@ -5,6 +5,7 @@ import math
 import random
 
 import numpy as np
+from mathutils import Vector
 
 from atlas import Canvas, hexrgb
 from geo import Piece, Swatch, Tile
@@ -14,13 +15,13 @@ SPEC = {
     "barrier": (4, 1, 0.4), "kerb": (6, 0.15, 0.8), "chevron": (2.4, 2, 0.3),
     "gate-start": (19, 7, 1.5), "gate-checkpoint": (19, 6, 1), "lamp": (0.6, 8, 1.6),
     "banner": (0.4, 6, 1.2), "stand": (12, 6, 6), "tree-a": (5, 7, 5), "tree-b": (5, 7, 5),
-    "pad": (6, 0.1, 6), "pillar": (2, 6, 2),
+    "pad": (6, 0.1, 6), "pillar": (2, 6, 2), "palm": (5, 7, 5), "hologram": (8, 12, 0.5),
 }
-LOOSE = {"tree-a": 0.6, "tree-b": 0.6}     # the contract says "≈" for trees
+LOOSE = {"tree-a": 0.6, "tree-b": 0.6, "palm": 0.6}     # the contract says "≈" for trees
 # Largest texture edge per piece. Flat-patterned pieces get by with 128 (stripes and gradients
 # survive any scale); text, crowd and facades need room. Anything not listed may use 512.
 TEX_EDGE = {"barrier": 128, "kerb": 128, "pillar": 128, "tree-a": 64, "tree-b": 64, "lamp": 64,
-            "banner": 256, "chevron": 256, "pad": 256}
+            "banner": 256, "chevron": 256, "pad": 256, "palm": 128}
 FOOTPRINTS, HEIGHTS = (20, 28, 36), (12, 24, 36)
 for _w in FOOTPRINTS:
     for _h in HEIGHTS:
@@ -492,11 +493,100 @@ def build_building(K, w, h):
     return p
 
 
+# ============================================================================ palm (neon)
+def paint_palm_trunk(c):
+    c.fill("palm_trunk")
+    n = 9                                                 # growth rings, one glowing line each
+    for i in range(n):
+        y = (i + 0.5) * c.h / n
+        c.rect(0, y - c.h * 0.012, c.w, y + c.h * 0.012, "palm_ring")
+        c.rect(0, y + c.h * 0.012, c.w, y + c.h * 0.035, "palm_trunk_")
+    c.shade_v(1.0, 0.75)
+
+
+def build_palm(K):
+    p = Piece("palm")
+    H, sides, segs, bend = 6.2, 6, 5, 0.9
+    trunk = K.tile("palm_trunk", 64, 256, paint_palm_trunk, v=("z", 0, H))
+
+    def ring(i):
+        t = i / segs
+        cx = bend * t * t                                  # gentle lean toward +X (piece left)
+        r = 0.28 + (0.17 - 0.28) * t
+        return [(cx + r * math.cos(2 * math.pi * k / sides), r * math.sin(2 * math.pi * k / sides), H * t) for k in range(sides)]
+    rings = [ring(i) for i in range(segs + 1)]
+    for i in range(segs):
+        a, b = rings[i], rings[i + 1]
+        for k in range(sides):
+            k1 = (k + 1) % sides
+            mid = ((a[k][0] + a[k1][0]) / 2 - bend * (i / segs) ** 2, (a[k][1] + a[k1][1]) / 2, 0)
+            p.poly([a[k], a[k1], b[k1], b[k]], trunk, hint=mid)
+    p.poly(rings[-1], sw("palm_trunk_"), hint=(0, 0, 1))
+    top = Vector((bend, 0, H))
+    up = Vector((0, 0, 1))
+    rng = random.Random(29)
+    for f in range(7):
+        a = 2 * math.pi * f / 7 + rng.uniform(-0.2, 0.2)
+        d = Vector((math.cos(a), math.sin(a), 0))
+        side = d.cross(up).normalized()
+        reach = rng.uniform(0.92, 1.0)
+        p0 = top
+        p1 = top + d * 1.0 * reach + up * 0.4
+        p2 = top + d * 1.9 * reach + up * 0.1
+        p3 = top + d * 2.45 * reach - up * 0.65
+        for sgn in (1, -1):
+            e1 = p1 + side * 0.48 * sgn - up * 0.14
+            e2 = p2 + side * 0.36 * sgn - up * 0.12
+            for face in ([p0, p1, e1], [p1, p2, e2, e1], [p2, p3, e2]):
+                p.poly(face, sw("palm_leaf"), hint=(0, 0, 1))
+                p.poly(list(reversed(face)), sw("palm_leaf_"), hint=(0, 0, -1))
+    return p
+
+
+# ============================================================================ hologram (neon)
+def paint_holo(c):
+    c.fill("holo_bg")
+    for y in range(0, c.h, 6):                            # scanlines
+        c.rect(0, y, c.w, y + 1.5, "holo_glow", emit=c.T.glow("holo_glow") * 0.25)
+    m = c.w * 0.05
+    L, t = c.w * 0.16, max(2.0, c.w * 0.012)
+    for x0, sx in ((m, 1), (c.w - m, -1)):                # corner brackets
+        for y0, sy in ((m, 1), (c.h - m, -1)):
+            c.rect(min(x0, x0 + sx * L), y0 - t / 2, max(x0, x0 + sx * L), y0 + t / 2, "holo_glow")
+            c.rect(x0 - t / 2, min(y0, y0 + sy * L), x0 + t / 2, max(y0, y0 + sy * L), "holo_glow")
+    cx, cy, r = c.w / 2, c.h * 0.27, c.w * 0.26          # emblem: ring and bolt
+    d = np.hypot(c.x - cx, c.y - cy)
+    c.paint(np.clip(np.minimum(d - (r - c.w * 0.025), r - d) + 0.5, 0, 1), "holo_accent")
+    s = r / 120
+    bolt = [(14, -86), (-58, 28), (-12, 28), (-32, 114), (48, -10), (0, -10), (28, -86)]
+    c.polygon([(cx + x * s, cy + y * s) for x, y in bolt], "holo_glow")
+    c.stamp_text("ELON", c.w / 2, c.h * 0.56, c.w * 0.62, c.h * 0.09, "holo_glow")
+    c.stamp_text("ROADSTER", c.w / 2, c.h * 0.68, c.w * 0.84, c.h * 0.08, "holo_accent")
+    c.stamp_text("RACE", c.w / 2, c.h * 0.81, c.w * 0.7, c.h * 0.11, "holo_glow")
+
+
+def build_hologram(K):
+    # A projector frame with the projection between the posts. The projection is two
+    # back-to-back single-sided quads, so it reads the right way round from both sides.
+    p = Piece("hologram")
+    p.box((-4, -0.25, 0), (4, 0.25, 0.5), {"all": sw("holo_frame"), "top": sw("holo_glow"),
+                                          "edge": sw("holo_frame^")}, bevel=0.04)
+    p.box((-4, -0.18, 0.5), (-3.75, 0.18, 12), {"all": sw("holo_frame"), "left": sw("holo_glow")})
+    p.box((3.75, -0.18, 0.5), (4, 0.18, 12), {"all": sw("holo_frame"), "right": sw("holo_glow")})
+    p.box((-3.75, -0.2, 11.7), (3.75, 0.2, 12), {"all": sw("holo_frame"), "bottom": sw("holo_glow")}, bottom=True)
+    holo = K.tile("holo", 256, 352, paint_holo, mat="holo")
+    x0, x1, z0, z1 = -3.7, 3.7, 0.65, 11.6
+    p.poly([(x0, -0.01, z0), (x1, -0.01, z0), (x1, -0.01, z1), (x0, -0.01, z1)], holo, hint=(0, -1, 0))
+    p.poly([(x0, 0.01, z0), (x1, 0.01, z0), (x1, 0.01, z1), (x0, 0.01, z1)], holo, hint=(0, 1, 0))
+    return p
+
+
 BUILDERS = {
     "barrier": build_barrier, "kerb": build_kerb, "chevron": build_chevron,
     "gate-start": build_gate_start, "gate-checkpoint": build_gate_checkpoint,
     "lamp": build_lamp, "banner": build_banner, "stand": build_stand,
     "tree-a": build_tree_a, "tree-b": build_tree_b, "pad": build_pad, "pillar": build_pillar,
+    "palm": build_palm, "hologram": build_hologram,
 }
 
 

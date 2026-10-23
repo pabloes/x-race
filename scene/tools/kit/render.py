@@ -24,12 +24,8 @@ def setup(scene):
     world = bpy.data.worlds.new("kit_sky")
     world.use_nodes = True
     bg = world.node_tree.nodes["Background"]
-    bg.inputs["Color"].default_value = (0.50, 0.70, 0.98, 1)
-    bg.inputs["Strength"].default_value = 0.9
     scene.world = world
     sun = bpy.data.objects.new("sun", bpy.data.lights.new("sun", "SUN"))
-    sun.data.energy = 3.6
-    sun.data.color = (1.0, 0.96, 0.9)
     sun.data.angle = math.radians(2)
     sun.rotation_euler = (math.radians(42), math.radians(8), math.radians(-35))
     scene.collection.objects.link(sun)
@@ -44,6 +40,21 @@ def setup(scene):
     scene.render.use_stamp_note = True
     scene.render.stamp_font_size = 22
     return cam
+
+
+def light(night):
+    """Daylight, or a moonlit night where the emissives carry the scene (neon)."""
+    sc = bpy.context.scene
+    bg = sc.world.node_tree.nodes["Background"]
+    sun = bpy.data.objects["sun"]
+    if night:
+        bg.inputs["Color"].default_value = (0.035, 0.03, 0.09, 1)
+        bg.inputs["Strength"].default_value = 1.0
+        sun.data.energy, sun.data.color = 0.6, (0.6, 0.7, 1.0)
+    else:
+        bg.inputs["Color"].default_value = (0.50, 0.70, 0.98, 1)
+        bg.inputs["Strength"].default_value = 0.9
+        sun.data.energy, sun.data.color = 3.6, (1.0, 0.96, 0.9)
 
 
 def flat_material(name, rgb):
@@ -110,6 +121,8 @@ def render_all(kit_dir, out_dir, report, theme):
     bpy.ops.wm.read_factory_settings(use_empty=True)
     sc = bpy.context.scene
     cam = setup(sc)
+    night = theme.name == "neon"
+    light(night)
     ground = plane("ground", -400, -400, 400, 400, -0.005, flat_material("ground", (0.42, 0.45, 0.48)))
     src = {}
     for name, _ in report:
@@ -177,7 +190,9 @@ def render_all(kit_dir, out_dir, report, theme):
         place(src["banner"], bx + 1.4, y)
     place(src["stand"], bx + 2.5 + 3, 6, -90)
     for i, y in enumerate((-14, -7, 0, 7, 14)):
-        place(src["tree-a" if i % 2 == 0 else "tree-b"], -bx - 5 - (i % 2) * 1.5, y, i * 47)
+        place(src["tree-a" if i % 2 == 0 else ("palm" if "palm" in src else "tree-b")], -bx - 5 - (i % 2) * 1.5, y, i * 47)
+    if "hologram" in src:
+        place(src["hologram"], bx + 4, 24, -90)
     place(src["gate-start"], 0, 10)
     place(src["pad"], 3.5, -4)
     place(src["gate-checkpoint"], 0, 48)
@@ -192,3 +207,7 @@ def render_all(kit_dir, out_dir, report, theme):
     shot(os.path.join(out_dir, "compo-chase.jpg"), "")
     aim(cam, (-16, -44, 30), (2, 10, 0))
     shot(os.path.join(out_dir, "compo-overview.jpg"), "")
+    if night:                                            # the explorer runs its own clock: check daylight too
+        light(False)
+        aim(cam, (2.5, -26, 3.4), (0.5, 20, 2.2))
+        shot(os.path.join(out_dir, "compo-chase-day.jpg"), "")
