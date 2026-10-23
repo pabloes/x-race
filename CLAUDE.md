@@ -15,6 +15,9 @@ contrato primero (avisando al coordinador) y el código después.
 - Cada escritura de componente en la escena viaja al renderer: se escribe solo cuando cambia.
 - Comentarios de código en inglés, explicando el porqué, en el estilo de los ficheros
   existentes. Documentación y README en español. Sin guiones largos en textos que publique Pablo.
+- Todo texto que ve el jugador (HUD, menú, avisos, rótulos) va en inglés por defecto, con
+  números en formato inglés (1.5 km, 0:24.21). Si algún día hay localización, el inglés es
+  el fallback.
 - Modelos 3D: siempre generados por un script (Blender headless o Python), nunca editados a mano.
   El coche viene de `~/dev/ZeroxWork/tesla-roadster-dcl/v2/scripts`; los kits de escenario,
   de `scene/tools/kit/`.

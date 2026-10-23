@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Carrera: HUD</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:ital,wght@0,600;0,700;1,700;1,800&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Barlow',system-ui,sans-serif;color:#F2F7FF}
+a{color:#3AD1FF}a:hover{color:#8AE4FF}
+button{font-family:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="position: relative; width: 1280px; height: 800px; overflow: hidden; background: linear-gradient(180deg, #3FA3E8 0%, #8FCDF2 46%, #C9E6F6 54%); font-family: 'Barlow', system-ui, sans-serif">
+
+  <!-- Escena: persecución a fondo -->
+  <div style="position: absolute; left: 0; right: 0; top: 360px; bottom: 0; background: radial-gradient(circle at 20% 30%, rgba(0,0,0,0.08) 0 1px, transparent 1.5px) 0 0 / 7px 7px, #A39F8C" aria-hidden="true"></div>
+  <div style="position: absolute; left: 40px; top: 210px; width: 170px; height: 170px; background: repeating-linear-gradient(0deg, #DCE4EE 0 14px, #8FB6D8 14px 22px, #DCE4EE 22px 26px), #DCE4EE; border: 3px solid #F4F6F8" aria-hidden="true"></div>
+  <div style="position: absolute; left: 230px; top: 160px; width: 120px; height: 220px; background: repeating-linear-gradient(0deg, #EAEEF3 0 14px, #9CC0DC 14px 22px, #EAEEF3 22px 26px), #EAEEF3; border: 3px solid #F4F6F8" aria-hidden="true"></div>
+  <div style="position: absolute; left: 930px; top: 190px; width: 170px; height: 190px; background: repeating-linear-gradient(0deg, #E3E8EF 0 14px, #94BBD9 14px 22px, #E3E8EF 22px 26px), #E3E8EF; border: 3px solid #F4F6F8" aria-hidden="true"></div>
+  <div style="position: absolute; left: 0; top: 0; width: 1280px; height: 800px; background: #747A86; clip-path: polygon(590px 366px, 690px 366px, 1340px 800px, -60px 800px)" aria-hidden="true"></div>
+  <div style="position: absolute; left: 0; top: 0; width: 1280px; height: 800px; background: repeating-linear-gradient(180deg, transparent 0 30px, #E8ECF2 30px 54px); clip-path: polygon(637px 366px, 643px 366px, 656px 800px, 624px 800px)" aria-hidden="true"></div>
+  <div style="position: absolute; left: 0; top: 0; width: 1280px; height: 800px; background: repeating-linear-gradient(90deg, #E33B3B 0 26px, #F4F4F4 26px 52px); clip-path: polygon(584px 370px, 596px 370px, -40px 800px, -120px 800px)" aria-hidden="true"></div>
+  <div style="position: absolute; left: 0; top: 0; width: 1280px; height: 800px; background: repeating-linear-gradient(90deg, #E33B3B 0 26px, #F4F4F4 26px 52px); clip-path: polygon(684px 370px, 696px 370px, 1400px 800px, 1320px 800px)" aria-hidden="true"></div>
+  <div style="position: absolute; left: 572px; top: 318px; width: 136px; height: 20px; background: linear-gradient(90deg, #111 0 25%, #E8392E 25% 75%, #111 75%); border: 2px solid #F4F4F4" aria-hidden="true"></div>
+  <div style="position: absolute; left: 500px; top: 520px; width: 280px; height: 120px; background: #F3F5F7; border-radius: 34px 34px 22px 22px / 40px 40px 22px 22px; box-shadow: 0 22px 30px rgba(0,0,0,0.3)" aria-hidden="true"></div>
+  <div style="position: absolute; left: 540px; top: 492px; width: 200px; height: 50px; background: #1B2330; border-radius: 30px 30px 6px 6px" aria-hidden="true"></div>
+  <div style="position: absolute; left: 520px; top: 600px; width: 240px; height: 12px; background: #FF3B3B; border-radius: 4px; box-shadow: 0 0 18px #FF3B3B" aria-hidden="true"></div>
+  <div style="position: absolute; left: 496px; top: 612px; width: 60px; height: 60px; border-radius: 50%; background: #16181D; border: 12px solid #2C3038" aria-hidden="true"></div>
+  <div style="position: absolute; left: 724px; top: 612px; width: 60px; height: 60px; border-radius: 50%; background: #16181D; border: 12px solid #2C3038" aria-hidden="true"></div>
+  <div style="position: absolute; left: 560px; top: 640px; width: 160px; height: 40px; background: radial-gradient(ellipse at top, rgba(58,209,255,0.6), transparent 70%)" aria-hidden="true"></div>
+
+  <!-- Tarjeta de circuito: mapa y cifras en una pieza -->
+  <section aria-label="Carrera" style="position: absolute; right: 28px; top: 28px; width: 420px; box-sizing: border-box; padding: 16px 18px; display: grid; grid-template-columns: 1fr 118px; gap: 14px; background: linear-gradient(160deg, rgba(10, 30, 56, 0.9), rgba(6, 18, 36, 0.9)); border: 2px solid rgba(58, 209, 255, 0.75); box-shadow: 0 0 28px rgba(58, 209, 255, 0.28); clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 0 100%)">
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <div style="font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 700; letter-spacing: 1px; color: #F2F7FF">CITY CIRCUIT</div>
+      <div style="position: relative; height: 196px; border-radius: 6px; background: rgba(4, 12, 24, 0.7); border: 1px solid rgba(58, 209, 255, 0.3); overflow: hidden">
+        <svg width="100%" height="100%" viewBox="0 0 262 196" role="img" aria-label="Minimapa con tu posición en naranja">
+          <path d="M40 160 L190 160 Q228 160 228 122 L228 80 Q228 48 196 48 L132 48 Q104 48 104 76 L104 92 Q104 118 78 118 L60 118 Q40 118 40 98 Z" fill="none" stroke="#1D4A66" stroke-width="12" stroke-linejoin="round"/>
+          <path d="M40 160 L190 160 Q228 160 228 122 L228 80 Q228 48 196 48 L132 48 Q104 48 104 76 L104 92 Q104 118 78 118 L60 118 Q40 118 40 98 Z" fill="none" stroke="#3AD1FF" stroke-width="4" stroke-linejoin="round"/>
+          <rect x="148" y="152" width="5" height="16" fill="#F2F7FF"/>
+          <rect x="155" y="152" width="5" height="16" fill="#0B1A2E"/>
+          <circle cx="228" cy="100" r="5" fill="#C7D6E6"/>
+          <circle cx="104" cy="84" r="5" fill="#C7D6E6"/>
+          <path d="M200 171 l8 -12 l8 12z" fill="#F59E0B"/>
+          <text x="12" y="24" fill="#3AD1FF" font-family="Barlow Condensed, sans-serif" font-size="16" font-weight="700">N</text>
+        </svg>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 9px; border-left: 2px solid rgba(58, 209, 255, 0.35); padding-left: 14px">
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: 1.5px; color: #9FD9F0">LAP</div>
+      <div style="font-family: 'Barlow Condensed', sans-serif; font-size: 30px; font-weight: 700; line-height: 1; color: #F2F7FF">1<span style="font-size: 18px; color: #9FD9F0"> / 3</span></div>
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: 1.5px; color: #9FD9F0">POSITION</div>
+      <div style="font-family: 'Barlow Condensed', sans-serif; font-size: 30px; font-weight: 700; line-height: 1; color: #F2F7FF">2<span style="font-size: 18px; color: #9FD9F0"> / 4</span></div>
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: 1.5px; color: #9FD9F0">CHECKPOINTS</div>
+      <div style="font-family: 'Barlow Condensed', sans-serif; font-size: 30px; font-weight: 700; line-height: 1; color: #F2F7FF">4<span style="font-size: 18px; color: #9FD9F0"> / 12</span></div>
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: 1.5px; color: #9FD9F0">TIME</div>
+      <div style="font-family: 'Barlow Condensed', sans-serif; font-size: 30px; font-weight: 700; line-height: 1; color: {{accent}}">0:24.21</div>
+    </div>
+  </section>
+
+  <!-- Clasificación: misma pieza, debajo -->
+  <section aria-label="Clasificación" style="position: absolute; right: 28px; top: 300px; width: 420px; box-sizing: border-box; padding: 12px 18px; display: flex; flex-direction: column; gap: 6px; background: linear-gradient(160deg, rgba(10, 30, 56, 0.9), rgba(6, 18, 36, 0.9)); border: 2px solid rgba(58, 209, 255, 0.5); clip-path: polygon(0 0, 100% 0, 100% calc(100% - 18px), calc(100% - 18px) 100%, 0 100%); font-size: 14px">
+    <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 600; letter-spacing: 1.5px; color: #9FD9F0"><span>STANDINGS</span><span>SCORE 995</span></div>
+    <div style="display: flex; align-items: center; gap: 10px"><span style="width: 18px; color: #9FD9F0; font-weight: 700">1</span><span style="flex: 1">BOT 1</span><span style="color: #9FD9F0">L1</span><span style="width: 56px; text-align: right; color: #C7D6E6">−2.3s</span></div>
+    <div style="display: flex; align-items: center; gap: 10px; margin: 0 -8px; padding: 4px 8px; border-radius: 4px; background: rgba(245, 158, 11, 0.18); border-left: 3px solid #F59E0B"><span style="width: 18px; color: #F59E0B; font-weight: 700">2</span><span style="flex: 1; font-weight: 700">Pabito#ee5c</span><span style="color: #9FD9F0">L1</span><span style="width: 56px; text-align: right; color: #F2F7FF">YOU</span></div>
+    <div style="display: flex; align-items: center; gap: 10px"><span style="width: 18px; color: #9FD9F0; font-weight: 700">3</span><span style="flex: 1">Ana</span><span style="color: #9FD9F0">L1</span><span style="width: 56px; text-align: right; color: #C7D6E6">+1.1s</span></div>
+    <div style="display: flex; align-items: center; gap: 10px"><span style="width: 18px; color: #9FD9F0; font-weight: 700">4</span><span style="flex: 1">BOT 2</span><span style="color: #9FD9F0">L1</span><span style="width: 56px; text-align: right; color: #C7D6E6">+4.8s</span></div>
+  </section>
+
+  <!-- Velocidad y carga, abajo a la izquierda, con el turbo como lámpara -->
+  <section aria-label="Velocidad y carga" style="position: absolute; left: 28px; bottom: 28px; display: flex; align-items: flex-end; gap: 12px">
+    <div style="width: 360px; box-sizing: border-box; padding: 14px 20px 16px; display: flex; flex-direction: column; gap: 10px; background: linear-gradient(160deg, rgba(10, 30, 56, 0.9), rgba(6, 18, 36, 0.9)); border: 2px solid rgba(58, 209, 255, 0.75); box-shadow: 0 0 28px rgba(58, 209, 255, 0.28); clip-path: polygon(0 0, calc(100% - 26px) 0, 100% 26px, 100% 100%, 0 100%)">
+      <div style="display: flex; align-items: baseline; gap: 10px"><span style="font-family: 'Barlow Condensed', sans-serif; font-style: italic; font-size: 64px; font-weight: 800; line-height: 0.9; color: #F2F7FF">162</span><span style="font-size: 16px; font-weight: 600; letter-spacing: 1px; color: #C7D6E6">km/h</span></div>
+      <div style="display: flex; gap: 3px" role="img" aria-label="Velocidad: 8 de 12 segmentos">
+        <span style="flex: 1; height: 8px; background: {{accent}}; clip-path: polygon(0 0, 100% 0, calc(100% - 4px) 100%, 0 100%)"></span><span style="flex: 1; height: 8px; background: {{accent}}; clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%)"></span><span style="flex: 1; height: 8px; background: {{accent}}; clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%)"></span><span style="flex: 1; height: 8px; background: {{accent}}; clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%)"></span><span style="flex: 1; height: 8px; background: {{accent}}; clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%)"></span><span style="flex: 1; height: 8px; background: {{accent}}; clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%)"></span><span style="flex: 1; height: 8px; background: {{accent}}; clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%)"></span><span style="flex: 1; height: 8px; background: {{accent}}; clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%)"></span><span style="flex: 1; height: 8px; background: rgba(255,255,255,0.18); clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%)"></span><span style="flex: 1; height: 8px; background: rgba(255,255,255,0.18); clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%)"></span><span style="flex: 1; height: 8px; background: rgba(255,255,255,0.18); clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%)"></span><span style="flex: 1; height: 8px; background: rgba(255,255,255,0.18); clip-path: polygon(4px 0, 100% 0, 100% 100%, 0 100%)"></span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px">
+        <svg width="18" height="16" viewBox="0 0 18 16" aria-hidden="true"><path d="M9 15S1 9.5 1 5a4 4 0 018-1 4 4 0 018 1c0 4.5-8 10-8 10z" fill="#FF4D6D"/></svg>
+        <div role="img" aria-label="Carga al 64 por ciento" style="flex: 1; height: 8px; background: rgba(255,255,255,0.16); border-radius: 2px; overflow: hidden"><div style="width: 64%; height: 100%; background: linear-gradient(90deg, #FF4D6D, {{accent}})"></div></div>
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: 1px; color: #C7D6E6">CHARGE 64%</span>
+      </div>
+    </div>
+    <div style="width: 92px; height: 72px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; background: linear-gradient(160deg, rgba(10, 30, 56, 0.9), rgba(6, 18, 36, 0.9)); border: 2px solid {{accent}}; box-shadow: 0 0 22px rgba(58, 209, 255, 0.55); clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%)">
+      <span style="width: 22px; height: 22px; border-radius: 4px; background: {{accent}}; box-shadow: 0 0 14px {{accent}}" aria-hidden="true"></span>
+      <span style="font-size: 11px; font-weight: 700; letter-spacing: 1.5px; color: #F2F7FF">BOOST</span>
+    </div>
+  </section>
+
+  <!-- Aviso de evento, centrado arriba -->
+  <div style="position: absolute; left: 50%; top: 28px; transform: translateX(-50%); padding: 8px 22px; background: linear-gradient(160deg, rgba(10, 30, 56, 0.9), rgba(6, 18, 36, 0.9)); border: 2px solid rgba(58, 209, 255, 0.6); clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 14px 100%, 0 50%); font-family: 'Barlow Condensed', sans-serif; font-style: italic; font-size: 22px; font-weight: 800; letter-spacing: 2px; color: #F2F7FF">CHECKPOINT 4 <span style="color: {{accent}}">+0.8s</span></div>
+
+  <!-- Controles plegados -->
+  <button type="button" aria-label="Mostrar controles" style="position: absolute; right: 28px; bottom: 28px; width: 46px; height: 46px; border: 2px solid rgba(58, 209, 255, 0.6); background: rgba(6, 18, 36, 0.86); color: #F2F7FF; font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 700; clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)">?</button>
+  <div style="position: absolute; right: 86px; bottom: 38px; padding: 4px 10px; background: rgba(6, 18, 36, 0.7); font-size: 11px; letter-spacing: 1px; color: #9FD9F0; display: flex; align-items: center; gap: 8px">
+    <span style="width: 7px; height: 7px; border-radius: 50%; background: #4ADE80" aria-hidden="true"></span><span>ONLINE · 3 MS · 37 FPS</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#3AD1FF","options":["#3AD1FF","#F59E0B","#A78BFA","#F472B6"]},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { accent: this.props.accent ?? '#3AD1FF' };
+  }
+}
+</script>
+</body>
+</html>

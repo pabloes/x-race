@@ -1,5 +1,14 @@
 # Contrato: cinemática de presentación
 
+> **Revisión del 23/10/2026 (T14).** Pablo cambia el flujo: la cinemática es un vuelo en
+> bucle por el circuito mientras el lobby está abierto (el menú se dibuja encima); plegar
+> el menú o pulsar espacio devuelve la cámara al avatar. Al dar a START la sala pasa
+> directamente a `countdown` y la cámara principal cambia a la de persecución con una
+> transición de 1 s (`VirtualCamera.Transition.Time(1.0)` en el rig; el vuelo usa su propia
+> entidad para que el cambio dispare la transición). La fase `intro` y `RACE.introMs`
+> desaparecen; `validateIntro` deja de exigir 12 s. Lo que sigue describe el diseño
+> anterior hasta que la sesión de cinemáticas lo reescriba.
+
 ## Datos (en `shared/cinematic.ts`, que `shared/tracks/types.ts` importa)
 
 ```ts

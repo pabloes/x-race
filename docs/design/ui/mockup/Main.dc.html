@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Lobby: race setup</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:ital,wght@0,600;0,700;1,700;1,800&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Barlow',system-ui,sans-serif;color:#F2F7FF}
+a{color:#3AD1FF}a:hover{color:#8AE4FF}
+button{font-family:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="position: relative; width: 1280px; height: 800px; overflow: hidden; background: linear-gradient(180deg, #3FA3E8 0%, #8FCDF2 48%, #C9E6F6 56%); font-family: 'Barlow', system-ui, sans-serif">
+
+  <!-- Escena estilizada: suelo, edificios, calzada, pórtico, gradas y el Roadster -->
+  <div style="position: absolute; left: 0; right: 0; top: 400px; bottom: 0; background: radial-gradient(circle at 20% 30%, rgba(0,0,0,0.08) 0 1px, transparent 1.5px) 0 0 / 7px 7px, #A39F8C" aria-hidden="true"></div>
+  <div style="position: absolute; left: 470px; top: 150px; width: 70px; height: 260px; background: repeating-linear-gradient(0deg, #D7E2EE 0 12px, #7FAAD2 12px 19px, #D7E2EE 19px 22px), #D7E2EE; border: 3px solid #F4F6F8" aria-hidden="true"></div>
+  <div style="position: absolute; left: 560px; top: 210px; width: 110px; height: 200px; background: repeating-linear-gradient(0deg, #EAEEF3 0 12px, #9CC0DC 12px 19px, #EAEEF3 19px 22px), #EAEEF3; border: 3px solid #F4F6F8" aria-hidden="true"></div>
+  <div style="position: absolute; left: 700px; top: 120px; width: 90px; height: 290px; background: repeating-linear-gradient(0deg, #DCE4EE 0 12px, #8FB6D8 12px 19px, #DCE4EE 19px 22px), #DCE4EE; border: 3px solid #F4F6F8" aria-hidden="true"></div>
+  <div style="position: absolute; left: 820px; top: 230px; width: 150px; height: 180px; background: repeating-linear-gradient(0deg, #E3E8EF 0 12px, #94BBD9 12px 19px, #E3E8EF 19px 22px), #E3E8EF; border: 3px solid #F4F6F8" aria-hidden="true"></div>
+  <div style="position: absolute; left: 0; top: 0; width: 1280px; height: 800px; background: #747A86; clip-path: polygon(588px 408px, 692px 408px, 1360px 800px, -80px 800px)" aria-hidden="true"></div>
+  <div style="position: absolute; left: 0; top: 0; width: 1280px; height: 800px; background: repeating-linear-gradient(180deg, transparent 0 34px, #E8ECF2 34px 58px); clip-path: polygon(637px 408px, 643px 408px, 654px 800px, 626px 800px)" aria-hidden="true"></div>
+  <div style="position: absolute; left: 0; top: 0; width: 1280px; height: 800px; background: repeating-linear-gradient(90deg, #E33B3B 0 26px, #F4F4F4 26px 52px); clip-path: polygon(582px 412px, 596px 412px, -60px 800px, -140px 800px)" aria-hidden="true"></div>
+  <div style="position: absolute; left: 0; top: 0; width: 1280px; height: 800px; background: repeating-linear-gradient(90deg, #E33B3B 0 26px, #F4F4F4 26px 52px); clip-path: polygon(684px 412px, 698px 412px, 1420px 800px, 1340px 800px)" aria-hidden="true"></div>
+  <div style="position: absolute; left: 0; top: 0; width: 1280px; height: 800px; background: repeating-linear-gradient(90deg, #2B5BB0 0 30px, #2446A0 30px 60px); clip-path: polygon(700px 372px, 1280px 300px, 1280px 420px, 712px 412px)" aria-hidden="true"></div>
+  <div style="position: absolute; left: 566px; top: 360px; width: 148px; height: 22px; background: linear-gradient(90deg, #111 0 22%, #E8392E 22% 78%, #111 78%); border: 2px solid #F4F4F4; display: flex; align-items: center; justify-content: center; color: #FFF; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-style: italic; font-size: 10px; letter-spacing: 1px" aria-hidden="true">ELON ROADSTER RACE</div>
+  <div style="position: absolute; left: 566px; top: 382px; width: 6px; height: 30px; background: repeating-linear-gradient(180deg, #111 0 4px, #FFF 4px 8px)" aria-hidden="true"></div>
+  <div style="position: absolute; left: 708px; top: 382px; width: 6px; height: 30px; background: repeating-linear-gradient(180deg, #111 0 4px, #FFF 4px 8px)" aria-hidden="true"></div>
+  <div style="position: absolute; left: 560px; top: 560px; width: 250px; height: 104px; background: #F3F5F7; border-radius: 30px 30px 20px 20px / 36px 36px 20px 20px; box-shadow: 0 22px 30px rgba(0,0,0,0.3)" aria-hidden="true"></div>
+  <div style="position: absolute; left: 596px; top: 536px; width: 178px; height: 44px; background: #1B2330; border-radius: 28px 28px 6px 6px" aria-hidden="true"></div>
+  <div style="position: absolute; left: 580px; top: 628px; width: 210px; height: 10px; background: #FF3B3B; border-radius: 4px; box-shadow: 0 0 16px #FF3B3B" aria-hidden="true"></div>
+  <div style="position: absolute; left: 556px; top: 632px; width: 56px; height: 56px; border-radius: 50%; background: #16181D; border: 11px solid #2C3038" aria-hidden="true"></div>
+  <div style="position: absolute; left: 758px; top: 632px; width: 56px; height: 56px; border-radius: 50%; background: #16181D; border: 11px solid #2C3038" aria-hidden="true"></div>
+
+  <!-- Logo -->
+  <div style="position: absolute; left: 36px; top: 24px; display: flex; flex-direction: column; line-height: 0.9; font-family: 'Barlow Condensed', sans-serif; font-style: italic; font-weight: 800; text-shadow: 0 4px 18px rgba(0,0,0,0.45)">
+    <div style="font-size: 76px; color: #FFFFFF; letter-spacing: 2px">ELON</div>
+    <div style="display: flex; align-items: baseline; gap: 10px; font-size: 42px; letter-spacing: 1px"><span style="color: {{accent}}">ROADSTER</span><span style="color: #FF4D6D">RACE</span></div>
+  </div>
+
+  <!-- Tarjeta RACE SETUP -->
+  <section aria-label="Race setup" style="position: absolute; left: 32px; top: 178px; width: 440px; height: 594px; box-sizing: border-box; padding: 20px 22px; display: flex; flex-direction: column; gap: 14px; background: linear-gradient(160deg, rgba(10, 30, 56, 0.9), rgba(6, 18, 36, 0.9)); border: 2px solid rgba(58, 209, 255, 0.75); box-shadow: 0 0 0 1px rgba(0,0,0,0.5), 0 0 28px rgba(58, 209, 255, 0.28), inset 0 0 40px rgba(58, 209, 255, 0.08); clip-path: polygon(0 0, calc(100% - 24px) 0, 100% 24px, 100% 100%, 24px 100%, 0 calc(100% - 24px))">
+    <div style="display: flex; align-items: center; gap: 10px; font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 700; letter-spacing: 1px; color: #F2F7FF">
+      <svg width="26" height="20" viewBox="0 0 26 20" aria-hidden="true"><path d="M2 2h22v10H2z" fill="#F2F7FF"/><path d="M2 2h5.5v5H2zM13 2h5.5v5H13zM7.5 7h5.5v5H7.5zM18.5 7h5.5v5h-5.5z" fill="#0B1A2E"/><rect x="2" y="2" width="2" height="18" fill="#F2F7FF"/></svg>
+      RACE SETUP
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <div style="display: flex; align-items: center; gap: 8px">
+        <button type="button" aria-label="Circuito anterior" style="width: 34px; height: 100px; border: 0; background: transparent; color: #F2F7FF; font-size: 26px">‹</button>
+        <div style="position: relative; flex: 1; height: 100px; border-radius: 8px; overflow: hidden; border: 1px solid rgba(58, 209, 255, 0.5); background: linear-gradient(180deg, #6FB9EA 0%, #B9DDF4 45%, #5A6373 46%, #3E4552 100%)">
+          <div style="position: absolute; left: 20px; top: 14px; width: 40px; height: 34px; background: #D8E2EC" aria-hidden="true"></div>
+          <div style="position: absolute; left: 70px; top: 6px; width: 28px; height: 42px; background: #C9D6E3" aria-hidden="true"></div>
+          <div style="position: absolute; right: 24px; top: 10px; width: 54px; height: 38px; background: #DCE4EE" aria-hidden="true"></div>
+          <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 52px; background: linear-gradient(180deg, transparent, rgba(4, 12, 24, 0.92))" aria-hidden="true"></div>
+          <div style="position: absolute; left: 12px; bottom: 8px; display: flex; flex-direction: column; line-height: 1.05">
+            <span style="font-family: 'Barlow Condensed', sans-serif; font-size: 26px; font-weight: 700; color: #F2F7FF; letter-spacing: 1px">CITY</span>
+            <span style="font-size: 12px; color: #C7D6E6">Circuito urbano · 1,5 km · salto y techo invertido</span>
+          </div>
+          <div style="position: absolute; right: 10px; top: 8px; padding: 3px 8px; border-radius: 4px; background: {{accent}}; color: #06252B; font-size: 11px; font-weight: 700; letter-spacing: 1px">TU VOTO</div>
+        </div>
+        <button type="button" aria-label="Circuito siguiente" style="width: 34px; height: 100px; border: 0; background: transparent; color: #F2F7FF; font-size: 26px">›</button>
+      </div>
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 42px">
+        <div style="display: flex; gap: 8px" aria-hidden="true"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{accent}}"></span><span style="width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.3)"></span></div>
+        <div style="font-size: 12px; color: #C7D6E6; letter-spacing: 0.5px">VOTOS · CITY <span style="color: #F2F7FF; font-weight: 700">2</span> · SKYLINE <span style="color: #F2F7FF; font-weight: 700">1</span> · empate: sorteo</div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <div style="display: flex; align-items: center; gap: 10px; font-family: 'Barlow Condensed', sans-serif; font-size: 18px; font-weight: 700; letter-spacing: 1px; color: #F2F7FF">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="{{accent}}" stroke-width="1.8" aria-hidden="true"><rect x="3" y="7" width="14" height="10" rx="2"/><path d="M7 7V5a3 3 0 016 0v2M7 12h6"/></svg>
+        GAME MODE
+      </div>
+      <div role="group" aria-label="Modo de juego" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+        <button type="button" aria-pressed="true" style="display: flex; align-items: center; gap: 12px; height: 64px; padding: 0 14px; border-radius: 8px; border: 2px solid {{accent}}; background: linear-gradient(180deg, rgba(58, 209, 255, 0.35), rgba(58, 209, 255, 0.12)); color: #F2F7FF; text-align: left; box-shadow: 0 0 16px rgba(58, 209, 255, 0.35)">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="#F2F7FF" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6z"/></svg>
+          <span style="display: flex; flex-direction: column; line-height: 1.1"><span style="font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 700; letter-spacing: 1px">SOLO</span><span style="font-size: 12px; color: #C7D6E6">Contra el tiempo y los bots</span></span>
+        </button>
+        <button type="button" aria-pressed="false" style="display: flex; align-items: center; gap: 12px; height: 64px; padding: 0 14px; border-radius: 8px; border: 2px solid rgba(255,255,255,0.22); background: rgba(255,255,255,0.05); color: #F2F7FF; text-align: left">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="#F2F7FF" aria-hidden="true"><circle cx="8" cy="8" r="3.2"/><circle cx="16" cy="8" r="3.2"/><path d="M2 19c0-3.5 3-5.5 6-5.5s6 2 6 5.5zM10 19c0-3.5 3-5.5 6-5.5s6 2 6 5.5z"/></svg>
+          <span style="display: flex; flex-direction: column; line-height: 1.1"><span style="font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 700; letter-spacing: 1px">MULTI</span><span style="font-size: 12px; color: #C7D6E6">Con otros pilotos</span></span>
+        </button>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1.25fr; gap: 14px">
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <div style="display: flex; align-items: center; gap: 10px; font-family: 'Barlow Condensed', sans-serif; font-size: 18px; font-weight: 700; letter-spacing: 1px; color: #F2F7FF">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="{{accent}}" stroke-width="1.8" aria-hidden="true"><rect x="4" y="6" width="12" height="10" rx="2"/><circle cx="8" cy="11" r="1.2" fill="{{accent}}"/><circle cx="12" cy="11" r="1.2" fill="{{accent}}"/><path d="M10 6V3"/></svg>
+          BOTS
+        </div>
+        <div role="group" aria-label="Bots" style="display: flex; align-items: center; height: 46px; border-radius: 8px; border: 2px solid rgba(255,255,255,0.22); background: rgba(255,255,255,0.05); overflow: hidden">
+          <button type="button" aria-label="Menos bots" style="width: 46px; height: 100%; border: 0; background: rgba(255,255,255,0.06); color: {{accent}}; font-size: 22px; font-weight: 600">−</button>
+          <div style="flex: 1; text-align: center; font-family: 'Barlow Condensed', sans-serif; font-size: 24px; font-weight: 700">0</div>
+          <button type="button" aria-label="Más bots" style="width: 46px; height: 100%; border: 0; background: rgba(255,255,255,0.06); color: {{accent}}; font-size: 22px; font-weight: 600">+</button>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <div style="display: flex; align-items: center; gap: 10px; font-family: 'Barlow Condensed', sans-serif; font-size: 18px; font-weight: 700; letter-spacing: 1px; color: #F2F7FF">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="{{accent}}" stroke-width="1.8" aria-hidden="true"><path d="M4 17V3M4 3h11l-2 4 2 4H4"/></svg>
+          LAPS
+        </div>
+        <div role="group" aria-label="Vueltas" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+          <button type="button" aria-pressed="true" style="height: 46px; border-radius: 8px; border: 2px solid {{accent}}; background: linear-gradient(180deg, rgba(58, 209, 255, 0.4), rgba(58, 209, 255, 0.14)); color: #F2F7FF; font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 700; box-shadow: 0 0 14px rgba(58, 209, 255, 0.35)">1</button>
+          <button type="button" aria-pressed="false" style="height: 46px; border-radius: 8px; border: 2px solid rgba(255,255,255,0.22); background: rgba(255,255,255,0.05); color: #F2F7FF; font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 700">3</button>
+          <button type="button" aria-pressed="false" style="height: 46px; border-radius: 8px; border: 2px solid rgba(255,255,255,0.22); background: rgba(255,255,255,0.05); color: #F2F7FF; font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 700">5</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex: 1"></div>
+
+    <button type="button" style="display: flex; align-items: center; justify-content: center; gap: 14px; height: 62px; border: 2px solid #8CFFA6; border-radius: 8px; background: linear-gradient(180deg, #6AF28C 0%, #2ECC63 100%); color: #052A12; font-family: 'Barlow Condensed', sans-serif; font-style: italic; font-size: 30px; font-weight: 800; letter-spacing: 2px; box-shadow: 0 0 24px rgba(74, 222, 128, 0.5)">
+      <svg width="20" height="22" viewBox="0 0 20 22" aria-hidden="true"><path d="M3 2l15 9-15 9z" fill="#052A12"/></svg>
+      START RACE
+    </button>
+    <button type="button" style="display: flex; align-items: center; justify-content: center; gap: 12px; height: 48px; border: 2px solid rgba(58, 209, 255, 0.55); border-radius: 8px; background: rgba(58, 209, 255, 0.08); color: #F2F7FF; font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 700; letter-spacing: 2px">
+      <svg width="22" height="16" viewBox="0 0 22 16" fill="none" stroke="{{accent}}" stroke-width="2" aria-hidden="true"><path d="M1 8s4-7 10-7 10 7 10 7-4 7-10 7S1 8 1 8z"/><circle cx="11" cy="8" r="3"/></svg>
+      SPECTATE
+    </button>
+  </section>
+
+  <!-- Tarjeta de circuito arriba a la derecha: en el lobby, el mapa y quién está listo -->
+  <section aria-label="Circuito" style="position: absolute; right: 28px; top: 28px; width: 420px; box-sizing: border-box; padding: 16px 18px; display: grid; grid-template-columns: 1fr 112px; gap: 14px; background: linear-gradient(160deg, rgba(10, 30, 56, 0.9), rgba(6, 18, 36, 0.9)); border: 2px solid rgba(58, 209, 255, 0.75); box-shadow: 0 0 28px rgba(58, 209, 255, 0.28); clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 0 100%)">
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <div style="font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 700; letter-spacing: 1px; color: #F2F7FF">CITY CIRCUIT</div>
+      <div style="position: relative; height: 196px; border-radius: 6px; background: rgba(4, 12, 24, 0.7); border: 1px solid rgba(58, 209, 255, 0.3); overflow: hidden">
+        <svg width="100%" height="100%" viewBox="0 0 268 196" role="img" aria-label="Minimapa del circuito CITY">
+          <path d="M40 160 L190 160 Q228 160 228 122 L228 80 Q228 48 196 48 L132 48 Q104 48 104 76 L104 92 Q104 118 78 118 L60 118 Q40 118 40 98 Z" fill="none" stroke="#1D4A66" stroke-width="12" stroke-linejoin="round"/>
+          <path d="M40 160 L190 160 Q228 160 228 122 L228 80 Q228 48 196 48 L132 48 Q104 48 104 76 L104 92 Q104 118 78 118 L60 118 Q40 118 40 98 Z" fill="none" stroke="#3AD1FF" stroke-width="4" stroke-linejoin="round"/>
+          <rect x="148" y="152" width="5" height="16" fill="#F2F7FF"/>
+          <rect x="155" y="152" width="5" height="16" fill="#0B1A2E"/>
+          <path d="M118 171 l7 -11 l7 11z" fill="#F59E0B"/>
+          <text x="12" y="24" fill="#3AD1FF" font-family="Barlow Condensed, sans-serif" font-size="16" font-weight="700">N</text>
+        </svg>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px; border-left: 2px solid rgba(58, 209, 255, 0.35); padding-left: 14px">
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: 1.5px; color: #9FD9F0">PILOTOS</div>
+      <div style="font-family: 'Barlow Condensed', sans-serif; font-size: 30px; font-weight: 700; line-height: 1; color: #F2F7FF">3</div>
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: 1.5px; color: #9FD9F0">LISTOS</div>
+      <div style="font-family: 'Barlow Condensed', sans-serif; font-size: 30px; font-weight: 700; line-height: 1; color: #F2F7FF">2<span style="font-size: 18px; color: #9FD9F0">/3</span></div>
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: 1.5px; color: #9FD9F0">PUERTA</div>
+      <div style="font-family: 'Barlow Condensed', sans-serif; font-size: 30px; font-weight: 700; line-height: 1; color: {{accent}}">0:42</div>
+    </div>
+  </section>
+
+  <!-- Barra de controles, abajo a la derecha -->
+  <section aria-label="Controles" style="position: absolute; right: 28px; bottom: 28px; display: flex; flex-direction: column; gap: 8px">
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 10px 12px; background: rgba(6, 18, 36, 0.86); border: 1px solid rgba(58, 209, 255, 0.35); border-radius: 8px">
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 4px"><span style="min-width: 34px; height: 30px; padding: 0 8px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border-radius: 4px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.1); font-weight: 700">W</span><span style="font-size: 10px; letter-spacing: 1px; color: #C7D6E6">THROTTLE</span></div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 4px"><span style="min-width: 34px; height: 30px; padding: 0 8px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border-radius: 4px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.1); font-weight: 700">S</span><span style="font-size: 10px; letter-spacing: 1px; color: #C7D6E6">BRAKE</span></div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 4px"><span style="display: flex; gap: 4px"><span style="min-width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 4px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.1); font-weight: 700">A</span><span style="min-width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 4px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.1); font-weight: 700">D</span></span><span style="font-size: 10px; letter-spacing: 1px; color: #C7D6E6">STEER</span></div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 4px"><span style="display: flex; gap: 4px"><span style="min-width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 4px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.1); font-weight: 700">W</span><span style="min-width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 4px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.1); font-weight: 700">W</span></span><span style="font-size: 10px; letter-spacing: 1px; color: #C7D6E6">BOOST</span></div>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 10px 12px; background: rgba(6, 18, 36, 0.86); border: 1px solid rgba(58, 209, 255, 0.35); border-radius: 8px">
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 4px"><span style="min-width: 34px; height: 30px; padding: 0 8px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border-radius: 4px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.1); font-weight: 700">SHIFT</span><span style="font-size: 10px; letter-spacing: 1px; color: #C7D6E6">HANDBRAKE</span></div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 4px"><span style="min-width: 34px; height: 30px; padding: 0 8px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border-radius: 4px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.1); font-weight: 700">SPACE</span><span style="font-size: 10px; letter-spacing: 1px; color: #C7D6E6">THRUSTERS</span></div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 4px"><span style="min-width: 34px; height: 30px; padding: 0 8px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border-radius: 4px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.1); font-weight: 700">E</span><span style="font-size: 10px; letter-spacing: 1px; color: #C7D6E6">ROLL</span></div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 4px"><span style="min-width: 34px; height: 30px; padding: 0 8px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border-radius: 4px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.1); font-weight: 700">F</span><span style="font-size: 10px; letter-spacing: 1px; color: #C7D6E6">RESPAWN</span></div>
+    </div>
+  </section>
+
+  <!-- Conexión -->
+  <div style="position: absolute; right: 28px; top: 300px; padding: 4px 10px; border-radius: 4px; background: rgba(6, 18, 36, 0.7); font-size: 11px; letter-spacing: 1px; color: #9FD9F0; display: flex; align-items: center; gap: 8px">
+    <span style="width: 7px; height: 7px; border-radius: 50%; background: #4ADE80" aria-hidden="true"></span><span>ONLINE · 3 MS · 37 FPS</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#3AD1FF","options":["#3AD1FF","#F59E0B","#A78BFA","#F472B6"]},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { accent: this.props.accent ?? '#3AD1FF' };
+  }
+}
+</script>
+</body>
+</html>

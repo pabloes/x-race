@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Intro: cinemática</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:ital,wght@0,600;0,700;1,700;1,800&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Barlow',system-ui,sans-serif;color:#F2F7FF}
+a{color:#3AD1FF}a:hover{color:#8AE4FF}
+</style>
+</helmet>
+<div style="position: relative; width: 1280px; height: 800px; overflow: hidden; background: linear-gradient(180deg, #2F93DC 0%, #8FCDF2 48%, #C9E6F6 56%); font-family: 'Barlow', system-ui, sans-serif">
+
+  <!-- Vista aérea estilizada: la cinemática sobrevuela la recta de meta -->
+  <div style="position: absolute; left: 0; right: 0; top: 430px; bottom: 0; background: radial-gradient(circle at 20% 30%, rgba(0,0,0,0.08) 0 1px, transparent 1.5px) 0 0 / 7px 7px, #A39F8C" aria-hidden="true"></div>
+  <div style="position: absolute; left: 90px; top: 330px; width: 120px; height: 110px; background: repeating-linear-gradient(0deg, #DCE4EE 0 12px, #8FB6D8 12px 19px, #DCE4EE 19px 22px), #DCE4EE; border: 3px solid #F4F6F8" aria-hidden="true"></div>
+  <div style="position: absolute; left: 230px; top: 290px; width: 90px; height: 150px; background: repeating-linear-gradient(0deg, #EAEEF3 0 12px, #9CC0DC 12px 19px, #EAEEF3 19px 22px), #EAEEF3; border: 3px solid #F4F6F8" aria-hidden="true"></div>
+  <div style="position: absolute; left: 980px; top: 300px; width: 140px; height: 140px; background: repeating-linear-gradient(0deg, #E3E8EF 0 12px, #94BBD9 12px 19px, #E3E8EF 19px 22px), #E3E8EF; border: 3px solid #F4F6F8" aria-hidden="true"></div>
+  <div style="position: absolute; left: 0; top: 0; width: 1280px; height: 800px; background: #747A86; clip-path: polygon(-80px 470px, 1360px 470px, 1360px 640px, -80px 640px)" aria-hidden="true"></div>
+  <div style="position: absolute; left: 0; top: 0; width: 1280px; height: 800px; background: repeating-linear-gradient(90deg, #E8ECF2 0 40px, transparent 40px 70px); clip-path: polygon(-80px 553px, 1360px 553px, 1360px 557px, -80px 557px)" aria-hidden="true"></div>
+  <div style="position: absolute; left: 0; top: 462px; width: 1280px; height: 8px; background: repeating-linear-gradient(90deg, #E33B3B 0 26px, #F4F4F4 26px 52px)" aria-hidden="true"></div>
+  <div style="position: absolute; left: 0; top: 640px; width: 1280px; height: 8px; background: repeating-linear-gradient(90deg, #E33B3B 0 26px, #F4F4F4 26px 52px)" aria-hidden="true"></div>
+  <div style="position: absolute; left: 540px; top: 452px; width: 200px; height: 18px; background: linear-gradient(90deg, #111 0 25%, #E8392E 25% 75%, #111 75%); border: 2px solid #F4F4F4" aria-hidden="true"></div>
+  <div style="position: absolute; left: 0; top: 0; width: 1280px; height: 800px; background: repeating-linear-gradient(90deg, #1B1F27 0 28px, #F4F4F4 28px 56px); clip-path: polygon(560px 476px, 600px 476px, 600px 636px, 560px 636px)" aria-hidden="true"></div>
+  <div style="position: absolute; left: 480px; top: 512px; width: 46px; height: 22px; background: #F3F5F7; border-radius: 6px 12px 6px 6px" aria-hidden="true"></div>
+  <div style="position: absolute; left: 480px; top: 572px; width: 46px; height: 22px; background: #F3F5F7; border-radius: 6px 12px 6px 6px" aria-hidden="true"></div>
+  <div style="position: absolute; left: 410px; top: 542px; width: 46px; height: 22px; background: #F3F5F7; border-radius: 6px 12px 6px 6px" aria-hidden="true"></div>
+  <div style="position: absolute; left: 0; top: 660px; width: 1280px; height: 60px; background: repeating-linear-gradient(90deg, #2B5BB0 0 40px, #2446A0 40px 80px); border-top: 4px solid #F4F6F8" aria-hidden="true"></div>
+
+  <!-- Bandas de cine -->
+  <div style="position: absolute; left: 0; right: 0; top: 0; height: 72px; background: #04090F" aria-hidden="true"></div>
+  <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 72px; background: #04090F" aria-hidden="true"></div>
+
+  <!-- Logo pequeño arriba a la izquierda, dentro de la banda -->
+  <div style="position: absolute; left: 36px; top: 18px; display: flex; align-items: baseline; gap: 10px; font-family: 'Barlow Condensed', sans-serif; font-style: italic; font-weight: 800; font-size: 28px; line-height: 1; letter-spacing: 1px">
+    <span style="color: #FFFFFF">ELON</span><span style="color: {{accent}}">ROADSTER</span><span style="color: #FF4D6D">RACE</span>
+  </div>
+
+  <!-- Rótulo del circuito: tarjeta angular, como el resto del HUD -->
+  <section aria-label="Presentación del circuito" style="position: absolute; left: 36px; bottom: 96px; box-sizing: border-box; padding: 18px 26px 20px 22px; display: flex; flex-direction: column; gap: 6px; background: linear-gradient(160deg, rgba(10, 30, 56, 0.9), rgba(6, 18, 36, 0.9)); border: 2px solid rgba(58, 209, 255, 0.75); box-shadow: 0 0 28px rgba(58, 209, 255, 0.28); clip-path: polygon(0 0, calc(100% - 26px) 0, 100% 26px, 100% 100%, 0 100%)">
+    <div style="font-size: 12px; font-weight: 600; letter-spacing: 3px; color: {{accent}}">CIRCUIT 1 · 3 LAPS · 1.5 KM</div>
+    <div style="font-family: 'Barlow Condensed', sans-serif; font-style: italic; font-size: 84px; font-weight: 800; line-height: 0.9; color: #F2F7FF">CITY</div>
+    <div style="font-size: 15px; color: #C7D6E6">Recta de meta · salto sobre pilares · techo invertido</div>
+  </section>
+
+  <!-- Saltar -->
+  <div style="position: absolute; right: 36px; bottom: 96px; display: flex; align-items: center; gap: 10px; padding: 8px 14px; background: rgba(6, 18, 36, 0.86); border: 2px solid rgba(58, 209, 255, 0.6); clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%); font-size: 12px; font-weight: 700; letter-spacing: 1.5px; color: #F2F7FF">
+    <span style="padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.1)">SPACE</span><span>SKIP</span>
+  </div>
+
+  <!-- Progreso de los 12 s, dentro de la banda inferior -->
+  <div style="position: absolute; left: 36px; right: 36px; bottom: 34px; height: 4px; background: rgba(58, 209, 255, 0.2)" aria-hidden="true">
+    <div style="width: 38%; height: 100%; background: {{accent}}; box-shadow: 0 0 10px {{accent}}"></div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#3AD1FF","options":["#3AD1FF","#F59E0B","#A78BFA","#F472B6"]},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { accent: this.props.accent ?? '#3AD1FF' };
+  }
+}
+</script>
+</body>
+</html>

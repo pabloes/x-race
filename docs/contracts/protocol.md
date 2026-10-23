@@ -5,6 +5,9 @@ otra versión, como hoy.
 
 ## Fases
 
+> **Revisión del 23/10/2026 (T14):** la fase `intro` se elimina; `lobby` pasa a `countdown`
+> al resolver la votación. Ver `cinematic.md`.
+
 ```ts
 export type RacePhase = 'lobby' | 'intro' | 'countdown' | 'racing' | 'finished'
 ```

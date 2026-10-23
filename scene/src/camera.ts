@@ -13,9 +13,9 @@
  * happen here, all driven by one smoothed "chase frame" that trails the car's orientation:
  *
  *  - rotation lag: the frame turns towards where the car points over a fraction of a
- *    second, so on turn-in the car swings on screen before the camera comes round;
- *  - position lag: the camera's position trails the spot the frame wants it in, which
- *    reads as the camera being pulled along behind the car, and pulled back as it speeds up;
+ *    second, so on turn-in the car swings on screen before the camera comes round, and
+ *    the camera, offset in that frame, swings out wide with it;
+ *  - pull-back: the camera sits further back the faster the car goes;
  *  - look-ahead: at speed the frame is turned into the corner by the steering, so the road
  *    you are about to use is on screen rather than the kerb you are leaving;
  *  - drift: when the car is sliding, the frame follows the direction it is actually
@@ -59,14 +59,20 @@ const CHASE = {
   /** What it looks at, in the chase frame: a little above the chassis and ahead of it. */
   aim: { x: 0, y: 0.9, z: 1.5 },
   /**
-   * Time constants of the two lags, in seconds. Rotation is the slow one, and it is what
-   * you see: at 0.25 s a car cornering at 0.7 rad/s sits about ten degrees turned on the
-   * screen. Position is kept tight so the car cannot leave the frame — at 0.06 s the
-   * camera trails the chase point by about two metres at top speed, which is the pull-back
-   * that says "fast" without the car shrinking to a dot.
+   * Time constant of the rotation lag, in seconds: at 0.25 s a car cornering at 0.7 rad/s
+   * sits about ten degrees turned on the screen. There is deliberately no lag on the
+   * position itself. The camera is always `offset` from the car's sampled position, in
+   * the lagged frame, so whatever the network does to that position — a late snapshot, an
+   * extrapolation being corrected — the camera does with it and nothing is seen to move.
+   * A first version lagged the absolute position too, and every such correction showed as
+   * the car jolting against the camera.
    */
   rotationLag: 0.25,
-  positionLag: 0.06,
+  /**
+   * The pull-back with speed that the position lag used to give for free: metres of extra
+   * distance per metre per second, about two metres at top speed.
+   */
+  pullbackPerMps: 0.05,
   /**
    * Look-ahead, in radians of frame turn per radian of steering, once the car is going
    * fast enough for it to matter (below `lookAheadSpeed` it fades out, because at parking
@@ -82,9 +88,7 @@ const CHASE = {
    */
   driftFollow: 0.7,
   driftMaxSlip: Math.PI / 3,
-  driftSpeed: 4,
-  /** Further than this from where it should be, the camera cuts instead of flying: respawns. */
-  snapDistance: 20
+  driftSpeed: 4
 }
 
 const LOCAL_UP: Vec3 = { x: 0, y: 1, z: 0 }
@@ -92,9 +96,8 @@ const LOCAL_FORWARD: Vec3 = { x: 0, y: 0, z: 1 }
 
 let anchor: Entity | null = null
 let attachedTo = -1
-/** The smoothed chase frame and the camera's own position, carried between frames. */
+/** The smoothed chase frame, carried between frames. */
 let chaseRot: Quat = { x: 0, y: 0, z: 0, w: 1 }
-let camPos: Vec3 = { x: 0, y: 0, z: 0 }
 
 function ensureAnchor(): Entity {
   if (anchor !== null && Transform.has(anchor)) return anchor
@@ -149,35 +152,31 @@ function chaseTarget(car: SampledCar): Quat {
 export function follow(car: SampledCar, dt: number): void {
   const rig = ensureAnchor()
   const target = chaseTarget(car)
-  let snap = false
 
   if (attachedTo !== car.id) {
     // Each component write is serialised to the renderer, so the hand-over happens once
-    // per car rather than every frame.
+    // per car rather than every frame. The frame starts where the car points: no swing
+    // in from wherever the last car left it.
     attachedTo = car.id
     MainCamera.createOrReplace(engine.CameraEntity, { virtualCameraEntity: rig })
     InputModifier.createOrReplace(engine.PlayerEntity, {
       mode: InputModifier.Mode.Standard({ disableAll: true })
     })
-    snap = true
-  }
-
-  const wanted = vadd(car.pos, quatRotate(target, CHASE.offset))
-  const away = vsub(wanted, camPos)
-  if (Math.hypot(away.x, away.y, away.z) > CHASE.snapDistance) snap = true
-
-  if (snap) {
     chaseRot = target
-    camPos = wanted
   } else {
     chaseRot = quatSlerp(chaseRot, target, lagStep(dt, CHASE.rotationLag))
-    const chasePoint = vadd(car.pos, quatRotate(chaseRot, CHASE.offset))
-    camPos = vadd(camPos, vscale(vsub(chasePoint, camPos), lagStep(dt, CHASE.positionLag)))
   }
 
-  // The camera looks from wherever the lag has left it, so the car stays in frame
-  // however far behind the rig is; its up is the frame's, which is what keeps the
-  // picture the right way up through a roll and upside down under the slab.
+  // Anchored to the car, offset in the lagged frame: the lateral swing on turn-in comes
+  // from the frame turning late, not from the camera being left behind. A respawn moves
+  // the car and the camera together, so there is nothing to snap.
+  const speed = Math.hypot(car.vel.x, car.vel.y, car.vel.z)
+  const offset = { x: CHASE.offset.x, y: CHASE.offset.y, z: CHASE.offset.z - speed * CHASE.pullbackPerMps }
+  const camPos = vadd(car.pos, quatRotate(chaseRot, offset))
+
+  // The camera looks along the lagged frame, a little ahead of the car; its up is the
+  // frame's, which is what keeps the picture the right way up through a roll and upside
+  // down under the slab.
   const aim = vadd(car.pos, quatRotate(chaseRot, CHASE.aim))
   const transform = Transform.getMutable(rig)
   transform.position = camPos
