@@ -1388,6 +1388,97 @@ function BottomRight() {
   )
 }
 
+// --- Intro --------------------------------------------------------------------------------
+
+/**
+ * The flyover's dressing: letterbox bands, a small logo, the circuit's card and the skip
+ * hint, with a progress line in the bottom band. Everything else steps aside.
+ */
+function IntroOverlay() {
+  if (hud.phase !== 'intro') return null
+  const track = trackById(hud.track)
+  const face = TRACK_CARDS[hud.track]
+  const number = TRACK_IDS.indexOf(hud.track) + 1
+  const km = (track.lapLength / 1000).toFixed(1)
+  // `index.ts` captions a vote settled by draw as "NAME, BY DRAW"; that belongs in the
+  // small print here, not in the name.
+  const byDraw = hud.bigMessage.endsWith('BY DRAW')
+  const progress = Math.max(0, Math.min(1, 1 - hud.phaseMs / RACE.introMs))
+  return (
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { left: 0, top: 0 }, width: '100%', height: '100%' }}>
+      <UiEntity
+        uiTransform={{ positionType: 'absolute', position: { left: 0, top: 0 }, width: '100%', height: BAND_HEIGHT }}
+        uiBackground={{ color: BAND }}
+      />
+      <UiEntity
+        uiTransform={{ positionType: 'absolute', position: { left: 0, bottom: 0 }, width: '100%', height: BAND_HEIGHT }}
+        uiBackground={{ color: BAND }}
+      />
+      <UiEntity
+        uiTransform={{ positionType: 'absolute', position: { left: 40, top: 12 }, width: 228, height: 57 }}
+        uiBackground={BG_LOGO}
+      />
+      <UiEntity
+        uiTransform={{
+          positionType: 'absolute',
+          position: { left: 40 - FRAME_GLOW, bottom: BAND_HEIGHT + 27 - FRAME_GLOW },
+          flexDirection: 'column',
+          padding: { left: FRAME_GLOW + 24, right: FRAME_GLOW + 40, top: FRAME_GLOW + 18, bottom: FRAME_GLOW + 20 }
+        }}
+        uiBackground={BG_CARD}
+      >
+        <Label
+          value={`CIRCUIT ${number} · ${hud.laps} LAPS · ${km} KM`}
+          fontSize={13}
+          color={ACCENT}
+          textAlign="middle-left"
+          textWrap="nowrap"
+        />
+        <Label value={track.name} fontSize={88} color={INK} textAlign="middle-left" textWrap="nowrap" />
+        <Label
+          value={`${byDraw ? 'Elegido por sorteo · ' : ''}${face !== undefined ? face.intro : ''}`}
+          fontSize={16}
+          color={MUTED}
+          textAlign="middle-left"
+          textWrap="nowrap"
+        />
+      </UiEntity>
+      <UiEntity
+        uiTransform={{
+          positionType: 'absolute',
+          position: { right: 40, bottom: BAND_HEIGHT + 27 },
+          height: 46,
+          flexDirection: 'row',
+          alignItems: 'center',
+          padding: { left: 12, right: 18 }
+        }}
+        uiBackground={BG_TAG}
+      >
+        <UiEntity
+          uiTransform={{ height: 28, justifyContent: 'center', padding: { left: 8, right: 8 }, margin: { right: 10 } }}
+          uiBackground={BG_KEY}
+        >
+          <Label value="SPACE" fontSize={13} color={INK} textAlign="middle-center" textWrap="nowrap" />
+        </UiEntity>
+        <Label value="SKIP" fontSize={13} color={INK} textAlign="middle-left" textWrap="nowrap" />
+      </UiEntity>
+      <UiEntity
+        uiTransform={{
+          positionType: 'absolute',
+          position: { left: 0, bottom: 38 },
+          width: '100%',
+          height: 4,
+          padding: { left: 40, right: 40 }
+        }}
+      >
+        <UiEntity uiTransform={{ flexGrow: 1, height: '100%' }} uiBackground={{ color: rgb(0x3ad1ff, 0.2) }}>
+          <UiEntity uiTransform={{ width: `${progress * 100}%`, height: '100%' }} uiBackground={{ color: ACCENT }} />
+        </UiEntity>
+      </UiEntity>
+    </UiEntity>
+  )
+}
+
 // --- Touch --------------------------------------------------------------------------------
 
 /**
@@ -1463,6 +1554,7 @@ function Hud() {
         pointerFilter: 'none'
       }}
     >
+      <IntroOverlay />
       <Logo />
       <RightColumn />
       <Speedometer />
