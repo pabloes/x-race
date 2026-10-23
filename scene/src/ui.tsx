@@ -210,7 +210,8 @@ const WARN = Color4.create(1, 0.55, 0.1, 1)
  * one gets a plain panel: the dots are still right, there is just nothing under them.
  */
 const MINIMAPS: Partial<Record<TrackId, string>> = {
-  city: 'images/minimap.png'
+  city: 'images/minimap.png',
+  skyline: 'images/minimap-skyline.png'
 }
 
 /** Side of the HUD track map, in pixels. */

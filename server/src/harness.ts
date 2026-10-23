@@ -117,8 +117,11 @@ async function main(): Promise<void> {
     console.log(`  lap times     ${s.laps.map((l) => (l / 1000).toFixed(2) + 's').join(', ') || 'none'}`)
     console.log(`  max speed     ${s.maxSpeed.toFixed(1)} m/s (${(s.maxSpeed * 3.6).toFixed(0)} km/h)`)
     console.log(`  max height    ${s.maxY.toFixed(1)} m`)
-    console.log(`  east jump     ${s.cpHits.has(3) ? 'yes' : 'NO'}`)
-    console.log(`  ceiling run   ${s.cpHits.has(6) ? 'yes' : 'NO'}`)
+    // Read off the circuit, not off CITY's checkpoint numbers. The car scores the run once
+    // per race, so this says whether it was ever driven, not how many times.
+    if (TRACK.triggers.some((t) => t.kind === 'invert')) {
+      console.log(`  inverted run  ${s.tricks.includes('Ceiling Run') ? 'yes' : 'NO'}`)
+    }
     console.log(`  tricks        ${s.tricks.length}  score=${car.score}  ${[...new Set(s.tricks)].join(', ')}`)
     console.log(`  respawns      ${s.respawns}`)
     console.log(`  charge        ${(car.charge * 100).toFixed(0)}%`)

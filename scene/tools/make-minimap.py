@@ -4,10 +4,12 @@ Renders the HUD minimap: a plain top-down plate of the circuit, from the same tr
 the server turns into colliders.
 
     cd scene
-    (cd ../server && npx tsx -e "import {TRACK} from '../shared/track'; \\
-        process.stdout.write(JSON.stringify(TRACK))") | python3 tools/make-minimap.py
+    (cd ../server && npx tsx -e "import {TRACKS} from '../shared/tracks'; \\
+        process.stdout.write(JSON.stringify(TRACKS.skyline))") | \\
+        python3 tools/make-minimap.py images/minimap-skyline.png
 
-Output: images/minimap.png, 512x512 with an alpha channel.
+Output: the path given (relative to scene/), images/minimap.png if none; 512x512 with an
+alpha channel. Each circuit has its own plate, listed in MINIMAPS in src/ui.tsx.
 
 The scene draws the car over this as a positioned dot, so the projection has to be the one
 the UI assumes and nothing else: x straight across, z up the image (north up, like the
@@ -23,8 +25,8 @@ import sys
 from PIL import Image, ImageDraw, ImageFilter
 
 SIZE = 512
-OUT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'images',
-                   'minimap.png')
+SCENE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+OUT = os.path.join(SCENE, sys.argv[1] if len(sys.argv) > 1 else os.path.join('images', 'minimap.png'))
 
 ROAD = (150, 162, 185, 255)
 CORNER_ROAD = (150, 162, 185, 255)
@@ -50,9 +52,9 @@ def main():
     draw.rounded_rectangle([0, 0, SIZE - 1, SIZE - 1], radius=10, fill=PLATE)
 
     def quad(pos, size, rot, colour):
-        """One axis-aligned box, rotated about Y, as a filled polygon."""
+        """One box seen from above: rotated about Y, and as long as its pitch lets it reach."""
         yaw = math.radians(rot[1])
-        hx, hz = size['x'] / 2, size['z'] / 2
+        hx, hz = size['x'] / 2, size['z'] / 2 * abs(math.cos(math.radians(rot[0])))
         points = []
         for sx, sz in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
             lx, lz = sx * hx, sz * hz
@@ -97,7 +99,7 @@ def main():
 
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     image.save(OUT, 'PNG', optimize=True)
-    print(f'{os.path.relpath(OUT, os.path.dirname(os.path.dirname(OUT)))}  '
+    print(f'{os.path.relpath(OUT, SCENE)}  '
           f'{os.path.getsize(OUT) // 1024} KB  {SIZE}x{SIZE}')
 
 

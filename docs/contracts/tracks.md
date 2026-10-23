@@ -112,8 +112,8 @@ export type PathPoint = { pos: Vec3; dir: Vec3; hint?: 'boost' | 'thrust' | 'bra
   de la sala (ver protocol.md) se limpia y reconstruye; el kit de decoración (`decor.ts`) se
   engancha en los mismos dos puntos.
 - HUD: minimapa y cuenta de controles leen el circuito activo, no una constante.
-- Pendiente en `track-render.ts` (Núcleo) para SKYLINE: las placas de carga se dibujan a
-  y = 0,16 fija y la del hueco está en una azotea a 12 m (usar la altura del trigger); el
-  plano de grava cubre los huecos del suelo, así que un coche que cae los atraviesa a la vista
-  (dibujar la grava por cajas `ground` en vez de un plano único lo arregla). La calzada en
-  altura no tiene soportes: los pone la decoración (`decor.ts`, sin colisionador).
+- Suelo visual: un plano de grava por caja `ground` y un plano oscuro en cada hueco del suelo,
+  así que quien cae de una azotea cae por un pozo y no atraviesa la grava. Las placas, pórticos
+  y pilares son piezas del kit (`decor.ts`) a la altura de su trigger.
+- Minimapa por circuito: `scene/tools/make-minimap.py <salida>` y la entrada en `MINIMAPS` de
+  `ui.tsx` (`images/minimap-skyline.png`).

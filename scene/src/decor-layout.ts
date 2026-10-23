@@ -72,7 +72,29 @@ const NEAR_ONLY = ['barrier', 'kerb', 'chevron']
 
 const SOLID: Surface['kind'][] = ['road', 'ramp', 'ceiling', 'startline']
 
-type Rect = { cx: number; cz: number; hx: number; hz: number; sin: number; cos: number; kind: Surface['kind'] }
+/**
+ * Road whose surface is higher than this is up on supports (rooftops and the climbs to
+ * them): its edges get no barriers, lamps or kerbs, which would stand on the ground far
+ * below or hang in the air beside it, and it gets a `pillar` under it every `PILLAR_STEP`.
+ */
+const RAISED = 0.5
+const PILLAR_STEP = 20
+/** Mirror of the generator's road thickness: a pillar reaches the underside of the slab. */
+const ROAD_THICKNESS = 0.6
+
+type Rect = {
+  cx: number
+  cz: number
+  hx: number
+  hz: number
+  sin: number
+  cos: number
+  kind: Surface['kind']
+  /** Height of the top face at the centre. */
+  top: number
+  /** Neither steep nor rolled: a pillar can stand under it (not a corkscrew chord). */
+  flat: boolean
+}
 
 /** Flat footprint of a box: pitch shortens a ramp's reach along the ground. */
 function footprint(s: Surface): Rect {
@@ -85,7 +107,9 @@ function footprint(s: Surface): Rect {
     hz: (s.size.z / 2) * Math.abs(Math.cos(pitch)),
     sin: Math.sin(yaw),
     cos: Math.cos(yaw),
-    kind: s.kind
+    kind: s.kind,
+    top: s.pos.y + (s.size.y / 2) * Math.cos(pitch),
+    flat: Math.abs(s.rot[0]) < 15 && Math.abs(s.rot[2]) < 1
   }
 }
 
@@ -184,6 +208,17 @@ export function layoutDecor(track: Track, manifest: KitManifest): Placed[] {
   const lifted = new Footprints(
     track.surfaces.filter((s) => s.kind === 'ramp' || s.kind === 'ceiling').map(footprint)
   )
+  // The parcel floor has holes where the circuit runs high; nothing grows over them.
+  const floor = track.surfaces.filter((s) => s.kind === 'ground').map(footprint)
+  const onFloor = (x: number, z: number): boolean => floor.some((r) => rectDistance(r, x, z) <= 0)
+  /** The highest road box over a point, if any. */
+  const roadUnder = (x: number, z: number): Rect | null => {
+    let best: Rect | null = null
+    for (const r of roads.near(x, z)) {
+      if (rectDistance(r, x, z) <= 0 && (!best || r.top > best.top)) best = r
+    }
+    return best
+  }
 
   const at = (k: number): LinePoint => line[((k % count) + count) % count]
   /** Signed turn over +-12 m: positive is a left-hander (the generator's convention). */
@@ -218,6 +253,7 @@ export function layoutDecor(track: Track, manifest: KitManifest): Placed[] {
     const entry = manifest[piece]
     if (!entry) return
     if (lifted.distance(x, z) <= 0) return
+    if (kind === 'scenery' && !onFloor(x, z)) return
     const near = solids.distance(x, z)
     if (near < (kind === 'scenery' ? SCENERY_CLEARANCE : TRACKSIDE_CLEARANCE)) return
     out.push({
@@ -262,9 +298,18 @@ export function layoutDecor(track: Track, manifest: KitManifest): Placed[] {
   // --- Along the racing line -------------------------------------------------
   for (let k = 0; k < count; k++) {
     const p = line[k]
-    // A gap in the road (none built yet) has no edge to dress.
+    // A gap in the road has no edge to dress.
     if (roads.distance(p.x, p.z) > 1) continue
     const g = groupOf(p.s, 0)
+    const under = roadUnder(p.x, p.z)
+    if (under && under.top > RAISED) {
+      // Scaled so the column reaches the slab from the parcel floor; 6 m is the piece.
+      const height = under.top - ROAD_THICKNESS
+      if (under.flat && height >= 1 && p.s % PILLAR_STEP === 0 && manifest['pillar']) {
+        pushAt('pillar', p.x, p.z, yawOf(p.dx, p.dz), 0, [1, height / manifest['pillar'].size.y, 1], g)
+      }
+      continue
+    }
     const half = halfWidthAt(p)
     const corner = isCorner(k)
     const yaw = yawOf(p.dx, p.dz)
@@ -323,7 +368,9 @@ export function layoutDecor(track: Track, manifest: KitManifest): Placed[] {
   // --- Gates -----------------------------------------------------------------
   if (startLine) {
     const k = startK
-    pushAt('gate-start', startLine.pos.x, startLine.pos.z, startLine.rot[1], 0, [1, 1, 1], groupOf(line[k].s, 0))
+    // On the road, wherever the road is: the line is a 4 cm stripe 2 cm over the asphalt,
+    // and the asphalt is 0.1 m over the floor.
+    pushAt('gate-start', startLine.pos.x, startLine.pos.z, startLine.rot[1], startLine.pos.y - 0.12, [1, 1, 1], groupOf(line[k].s, 0))
   }
   for (const t of track.triggers) {
     if (t.kind !== 'checkpoint') continue
@@ -331,7 +378,8 @@ export function layoutDecor(track: Track, manifest: KitManifest): Placed[] {
     if (startLine && Math.hypot(t.pos.x - startLine.pos.x, t.pos.z - startLine.pos.z) < 12) continue
     // Not inside the ceiling run: the gate would cut through the slab.
     if (lifted.distance(t.pos.x, t.pos.z) < 3) continue
-    pushAt('gate-checkpoint', t.pos.x, t.pos.z, t.rot[1], 0, [1, 1, 1], nearestGroup(line, t.pos.x, t.pos.z))
+    // The trigger stands on the road, so its foot is where the gate goes.
+    pushAt('gate-checkpoint', t.pos.x, t.pos.z, t.rot[1], t.pos.y - t.size.y / 2, [1, 1, 1], nearestGroup(line, t.pos.x, t.pos.z))
   }
 
   // --- Pads and pillars ------------------------------------------------------
