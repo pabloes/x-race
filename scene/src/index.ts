@@ -16,7 +16,8 @@ import { engine } from '@dcl/sdk/ecs'
 import { SNAPSHOT_RATE, TICK_RATE } from '../../shared/constants'
 import { vlen } from '../../shared/math'
 import { CarFlag, InputBit, type GameEvent, type PlayerInfo, type Standing } from '../../shared/protocol'
-import { activeCheckpoints, activeTrack } from './active-track'
+import { isTrackId, trackById } from '../../shared/tracks'
+import { activeCheckpoints, activeTrack, setActiveTrack } from './active-track'
 import { cheer, forgetMissing, updateCarAudio } from './audio'
 import { carRoot, dropMissing, parkCar, renderCar, setDriverNames } from './car'
 import { updateSkidmarks } from './skidmarks'
@@ -26,7 +27,7 @@ import { dropBoost, readInputBits, respawnPressed } from './input'
 import { Connection } from './net/connection'
 import { SPIKE_CANNON, startCannonSpike } from './spike-cannon'
 import { detectPlatform } from './platform'
-import { buildTrack } from './track-render'
+import { buildTrack, clearTrack } from './track-render'
 import { hud, menu, setupUi } from './ui'
 
 /**
@@ -44,6 +45,12 @@ let localNow = 0
 let players: PlayerInfo[] = []
 /** This frame's own input bits, kept for the sounds that have no flag on the wire. */
 let inputBits = 0
+/**
+ * What the flyover is captioned with, from the `track` event. Kept apart from the HUD,
+ * because the event can land a snapshot before the phase leaves the lobby, and the lobby
+ * clears the big message every frame; it is dropped once the countdown starts.
+ */
+let trackNotice = ''
 
 const connection = new Connection({
   onEvents: handleEvents,
@@ -101,6 +108,14 @@ function handleEvents(events: GameEvent[]): void {
         hud.standings = event.standings
         hud.bigMessage = podiumText(event.standings)
         break
+      case 'track':
+        // The vote has been counted. Said out loud when a draw decided it, because
+        // otherwise a circuit nobody seems to have picked just appears.
+        if (isTrackId(event.track)) {
+          const name = trackById(event.track).name
+          trackNotice = event.tie ? `${name}, BY DRAW` : name
+        }
+        break
     }
   }
 }
@@ -139,6 +154,10 @@ function renderSystem(dt: number): void {
   }
 
   const mine = cars.get(connection.playerId)
+  // Cinematic hook. While the room's phase is 'intro' the flyover owns the camera, in
+  // place of `follow`/`detach`: with scene/src/cinematic.ts merged, `introElapsedMs(race
+  // phase, phaseMs, dt)` and then `playIntro(activeTrack(), activeTrack().intro, elapsed)`,
+  // reading `connection.buffer.latestRace()` like the HUD does.
   if (mine) {
     follow(mine, dt)
     hud.speedKmh = vlen(mine.vel) * 3.6 * SPEEDO_EXAGGERATION
@@ -190,6 +209,18 @@ function hudSystem(dt: number): void {
         : 'connecting to race server…'
 
   if (race) {
+    // The room switched circuit: take the old one down and draw the new one. Compared by
+    // id rather than on the `track` event, so a player who joins after the switch, or
+    // misses the event, still ends up on the circuit the room is racing on.
+    if (isTrackId(race.track) && setActiveTrack(race.track)) {
+      clearTrack()
+      buildTrack(activeTrack())
+      hud.checkpoints = activeTrack().checkpointCount
+      hud.track = race.track
+    }
+    hud.votes = race.votes ?? {}
+    // A vote lives for one lobby, on the server and so here.
+    if (race.phase !== 'lobby') hud.myVote = null
     hud.phase = race.phase
     hud.phaseMs = race.phaseMs
     hud.raceTimeMs = race.timeMs
@@ -198,8 +229,12 @@ function hudSystem(dt: number): void {
     hud.bots = race.bots
     hud.joining = race.joining
     if (race.phase === 'countdown') {
+      trackNotice = ''
       const seconds = Math.ceil(race.phaseMs / 1000)
       hud.bigMessage = seconds > 0 ? String(seconds) : 'GO!'
+    } else if (race.phase === 'intro') {
+      // Whoever arrives mid-flyover missed the event, but should still see the name.
+      hud.bigMessage = trackNotice !== '' ? trackNotice : activeTrack().name
     } else if (race.phase === 'lobby') {
       // The menu is on screen in the lobby and says this itself; printing it again in the
       // middle of the screen just put two texts on top of each other.
@@ -233,6 +268,11 @@ export function main(): void {
   menu.setMode = (mode) => connection.setMode(mode)
   menu.setBots = (count) => connection.setBots(count)
   menu.setLaps = (laps) => connection.setLaps(laps)
+  // Highlighted straight away: the server sends no confirmation, only the count.
+  menu.vote = (track) => {
+    hud.myVote = track
+    connection.vote(track)
+  }
   menu.start = () => connection.startRace()
   menu.leaveRace = () => connection.leaveRace()
   menu.setSpectator = (on) => connection.spectate(on)

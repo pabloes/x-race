@@ -11,6 +11,7 @@
  * straight runs +X along the south edge.
  */
 
+import { cityIntro } from '../intros/city'
 import type { TrackDefinition } from './types'
 
 export const CITY: TrackDefinition = {
@@ -42,5 +43,6 @@ export const CITY: TrackDefinition = {
     { x: 62, z: 64, r: 42, name: 'T14' }
   ],
   // The launch ramp on the main straight, the flip on the next longest.
-  features: ['start-jump', 'ceiling']
+  features: ['start-jump', 'ceiling'],
+  intro: cityIntro
 }

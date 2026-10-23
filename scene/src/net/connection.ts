@@ -28,7 +28,7 @@ import {
   type Standing,
   type WireInput
 } from '../../../shared/protocol'
-import { isTrackId, trackById, trackFingerprint } from '../../../shared/tracks'
+import { isTrackId, trackById, trackFingerprint, type TrackId } from '../../../shared/tracks'
 import { SnapshotBuffer } from './snapshot-buffer'
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'offline'
@@ -161,6 +161,11 @@ export class Connection {
 
   setLaps(laps: number): void {
     this.send({ t: 'laps', laps })
+  }
+
+  /** Our circuit for the next race; the count comes back in the snapshot's `votes`. */
+  vote(track: TrackId): void {
+    this.send({ t: 'vote', track })
   }
 
   get roundTripMs(): number {
