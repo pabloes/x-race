@@ -618,12 +618,13 @@ def main():
              ACCENT, 0.35), 'card-on.png', 18)
     put(card((64, 64), 8, 8, (255, 255, 255, 56), [(0, (255, 255, 255, 13)), (1, (255, 255, 255, 13))]),
         'card-off.png', 18)
-    # Buttons. margin 10 on both, glow on the green one only.
-    put(card((64, 128), 10, 8, (140, 255, 166, 255),
+    # Buttons: the cards' margin, so the whole lobby card lines up on one grid. Glow on
+    # the green one only.
+    put(card((64, 128), 8, 8, (140, 255, 166, 255),
              [(0, (106, 242, 140, 255)), (1, (46, 204, 99, 255))], (74, 222, 128), 0.5),
-        'button-green.png', 22)
-    put(card((64, 64), 10, 8, rgba(ACCENT, 0.6), [(0, rgba(ACCENT, 0.09)), (1, rgba(ACCENT, 0.09))]),
-        'button-outline.png', 20)
+        'button-green.png', 18)
+    put(card((64, 64), 8, 8, rgba(ACCENT, 0.6), [(0, rgba(ACCENT, 0.09)), (1, rgba(ACCENT, 0.09))]),
+        'button-outline.png', 18)
     put(card((32, 32), 0, 4, (255, 255, 255, 102), [(0, (255, 255, 255, 34)), (1, (255, 255, 255, 20))]),
         'key-cap.png', 7)
 

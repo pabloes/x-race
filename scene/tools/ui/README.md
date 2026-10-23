@@ -29,7 +29,7 @@ fracción que `ui.tsx` pasa en `textureSlices`. El conjunto pesa unos 250 KB (pr
 
 - Los marcos se dibujan al tamaño al que se ven: el explorador pinta el borde de un 9-slice a
   los píxeles de la textura. Si cambias un chaflán o un margen, cambia también la constante
-  que lo refleja en `ui.tsx` (`FRAME_GLOW`, `CARD_GLOW`, `BUTTON_GLOW`).
+  que lo refleja en `ui.tsx` (`FRAME_GLOW`, `CARD_GLOW` y los `SLICE_*`).
 - Los marcos con brillo llevan un margen transparente para él, y su pareja sin brillo lleva el
   mismo margen.
 - Un circuito nuevo necesita su `thumb_<id>` aquí y su entrada en `TRACK_CARDS` de `ui.tsx`.
