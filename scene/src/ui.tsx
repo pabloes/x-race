@@ -314,9 +314,12 @@ const LOBBY_HEIGHT = 640
 const LOBBY_INNER = LOBBY_WIDTH - 2 * 16
 
 const CARD_WIDTH = 472
-/** Side of the HUD track map, in pixels. */
+/** Side of the lobby card's track map, in pixels. */
 const MAP_SIZE = 220
 const MAP_WELL_WIDTH = 282
+/** The racing card and its map: with the standings under it, no more than 300 x 330. */
+const RACE_CARD_WIDTH = 300
+const RACE_MAP_SIZE = 150
 
 const SPEED_WIDTH = 405
 /** km/h at which the speed bar is full: a little over flat out on boost. */
@@ -737,18 +740,19 @@ function LobbyCard() {
  * are mandatory and in order, so the useful thing to draw is the next one and its number,
  * not all twelve. It is cyan, because orange on this map means your car.
  */
-function Minimap() {
+function Minimap(props: { size: number; well: number }) {
   const next = hud.nextCheckpoint
   const extent = activeTrack().extent
   const plate = MINIMAPS[hud.track]
+  const size = props.size
   // The label sits to the right of the marker, except near the right edge, where it would
   // run off the plate and be clipped.
-  const nextLeft = next ? (next.x / extent) * MAP_SIZE : 0
-  const nextTop = next ? ((extent - next.z) / extent) * MAP_SIZE : 0
-  const labelOnLeft = nextLeft > MAP_SIZE * 0.62
+  const nextLeft = next ? (next.x / extent) * size : 0
+  const nextTop = next ? ((extent - next.z) / extent) * size : 0
+  const labelOnLeft = nextLeft > size * 0.62
   return (
     <UiEntity
-      uiTransform={{ width: MAP_WELL_WIDTH, height: MAP_SIZE, flexDirection: 'row', justifyContent: 'center' }}
+      uiTransform={{ width: props.well, height: size, flexDirection: 'row', justifyContent: 'center' }}
       uiBackground={{ color: WELL }}
     >
       <Label
@@ -758,7 +762,7 @@ function Minimap() {
         uiTransform={{ positionType: 'absolute', position: { left: 10, top: 6 } }}
       />
       <UiEntity
-        uiTransform={{ width: MAP_SIZE, height: MAP_SIZE }}
+        uiTransform={{ width: size, height: size }}
         uiBackground={plate !== undefined ? image(plate) : undefined}
       >
         {next ? (
@@ -787,18 +791,18 @@ function Minimap() {
           </UiEntity>
         ) : null}
         {hud.blips.map((blip) => {
-          const size = blip.mine ? 11 : 8
+          const dot = blip.mine ? 11 : 8
           return (
             <UiEntity
               key={blip.id}
               uiTransform={{
                 positionType: 'absolute',
                 position: {
-                  left: (blip.x / extent) * MAP_SIZE - size / 2,
-                  top: ((extent - blip.z) / extent) * MAP_SIZE - size / 2
+                  left: (blip.x / extent) * size - dot / 2,
+                  top: ((extent - blip.z) / extent) * size - dot / 2
                 },
-                width: size,
-                height: size
+                width: dot,
+                height: dot
               }}
               uiBackground={{ color: blip.mine ? YOU : MUTED }}
             />
@@ -832,30 +836,51 @@ function Stat(props: { label: string; value: string; suffix?: string; color?: Co
 }
 
 /**
- * The numbers beside the map. In the lobby they are about the room — who is in, who is
- * ready, how long the door stays open — because a LAP 1/3 before anything has started is
- * a number that means nothing.
+ * The numbers beside the lobby map: the room — who is in, who is ready, how long the door
+ * stays open — because a LAP 1/3 before anything has started is a number that means nothing.
  */
-function CardStats() {
-  if (hud.phase === 'lobby') {
-    return (
-      <UiEntity uiTransform={{ width: '100%', flexDirection: 'column' }}>
-        <Stat label="PILOTOS" value={String(hud.pilots)} />
-        <Stat label="LISTOS" value={String(hud.ready)} suffix={`/${hud.pilots}`} />
-        <Stat
-          label="PUERTA"
-          value={hud.joining ? clock(hud.phaseMs) : '—'}
-          color={hud.joining ? ACCENT : CAPTION}
-        />
-      </UiEntity>
-    )
-  }
+function LobbyStats() {
   return (
     <UiEntity uiTransform={{ width: '100%', flexDirection: 'column' }}>
-      <Stat label="LAP" value={String(Math.min(hud.lap + 1, hud.laps))} suffix={` / ${hud.laps}`} />
-      <Stat label="POSITION" value={String(hud.rank)} suffix={` / ${Math.max(hud.drivers, 1)}`} />
-      <Stat label="CHECKPOINTS" value={String(hud.checkpoint)} suffix={` / ${hud.checkpoints}`} />
-      <Stat label="TIME" value={formatTime(hud.raceTimeMs)} color={ACCENT} />
+      <Stat label="PILOTOS" value={String(hud.pilots)} />
+      <Stat label="LISTOS" value={String(hud.ready)} suffix={`/${hud.pilots}`} />
+      <Stat label="PUERTA" value={hud.joining ? clock(hud.phaseMs) : '—'} color={hud.joining ? ACCENT : CAPTION} />
+    </UiEntity>
+  )
+}
+
+/** One figure of the race row: a small caption over the value. */
+function RaceFigure(props: { label: string; value: string; grow: number; color?: Color4 }) {
+  return (
+    <UiEntity uiTransform={{ flexGrow: props.grow, flexBasis: 0, flexDirection: 'column', alignItems: 'flex-start' }}>
+      <Label value={props.label} fontSize={10} color={CAPTION} textAlign="middle-left" textWrap="nowrap" />
+      <Label value={props.value} fontSize={19} color={props.color ?? INK} textAlign="middle-left" textWrap="nowrap" />
+    </UiEntity>
+  )
+}
+
+/**
+ * The racing card: the map and one row of figures, and nothing that has to be read twice.
+ * Small on purpose — while driving it is glanced at, and every pixel of it is circuit you
+ * are not seeing.
+ */
+function RaceCard() {
+  return (
+    <UiEntity
+      uiTransform={{
+        width: RACE_CARD_WIDTH + 2 * FRAME_GLOW,
+        flexDirection: 'column',
+        padding: { left: FRAME_GLOW + 14, right: FRAME_GLOW + 14, top: FRAME_GLOW + 12, bottom: FRAME_GLOW + 10 }
+      }}
+      uiBackground={BG_CARD}
+    >
+      <Minimap size={RACE_MAP_SIZE} well={RACE_CARD_WIDTH - 28} />
+      <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', margin: { top: 8 } }}>
+        <RaceFigure label="LAP" value={`${Math.min(hud.lap + 1, hud.laps)}/${hud.laps}`} grow={1} />
+        <RaceFigure label="POS" value={`${hud.rank}/${Math.max(hud.drivers, 1)}`} grow={1} />
+        <RaceFigure label="CP" value={`${hud.checkpoint}/${hud.checkpoints}`} grow={1.1} />
+        <RaceFigure label="TIME" value={formatTime(hud.raceTimeMs)} grow={1.6} color={ACCENT} />
+      </UiEntity>
     </UiEntity>
   )
 }
@@ -863,16 +888,18 @@ function CardStats() {
 /** One row of the standings; yours is the orange one. */
 function StandingRow(props: { key?: string; s: Standing; mine: boolean; big: boolean }) {
   const s = props.s
-  const size = props.big ? 19 : 15
-  const right = props.mine && !props.big ? 'YOU' : s.finished ? formatTime(s.totalMs) : props.big ? `L${s.lap + 1}` : ''
+  const size = props.big ? 19 : 13
+  // No time gaps on the wire yet, so the race list says what it can: you, a finishing
+  // time, or the lap the others are on.
+  const right = props.mine && !props.big ? 'YOU' : s.finished ? formatTime(s.totalMs) : `L${s.lap + 1}`
   return (
     <UiEntity
       uiTransform={{
         width: '100%',
-        height: size + (props.big ? 14 : 10),
+        height: size + (props.big ? 14 : 7),
         flexDirection: 'row',
         alignItems: 'center',
-        padding: { left: 10, right: 8 }
+        padding: { left: props.big ? 10 : 8, right: 6 }
       }}
       uiBackground={props.mine ? { color: rgb(0xf59e0b, 0.18) } : undefined}
     >
@@ -887,28 +914,26 @@ function StandingRow(props: { key?: string; s: Standing; mine: boolean; big: boo
         fontSize={size}
         color={props.mine ? YOU : CAPTION}
         textAlign="middle-left"
-        uiTransform={{ width: props.big ? 30 : 22 }}
+        uiTransform={{ width: props.big ? 30 : 20 }}
       />
       <Label
-        value={short(s.name, props.big ? 20 : 18)}
+        value={short(s.name, props.big ? 20 : 16)}
         fontSize={size}
         color={INK}
         textAlign="middle-left"
         textWrap="nowrap"
         uiTransform={{ flexGrow: 1 }}
       />
-      {!props.big ? (
-        <Label value={`L${s.lap + 1}`} fontSize={size} color={CAPTION} textAlign="middle-right" uiTransform={{ width: 34 }} />
-      ) : (
+      {props.big ? (
         <Label value={`${s.score}`} fontSize={size - 3} color={CAPTION} textAlign="middle-right" uiTransform={{ width: 70 }} />
-      )}
+      ) : null}
       <Label
         value={right}
         fontSize={size}
         color={props.mine ? INK : MUTED}
         textAlign="middle-right"
         textWrap="nowrap"
-        uiTransform={{ width: props.big ? 110 : 74 }}
+        uiTransform={{ width: props.big ? 110 : 64 }}
       />
     </UiEntity>
   )
@@ -933,6 +958,7 @@ function Results() {
 
 function CircuitCard() {
   const finished = hud.phase === 'finished' && hud.standings.length > 0
+  if (!finished && hud.phase !== 'lobby') return <RaceCard />
   return (
     <UiEntity
       uiTransform={{
@@ -955,14 +981,14 @@ function CircuitCard() {
               textWrap="nowrap"
               uiTransform={{ margin: { bottom: 8 } }}
             />
-            <Minimap />
+            <Minimap size={MAP_SIZE} well={MAP_WELL_WIDTH} />
           </UiEntity>
           <UiEntity
             uiTransform={{ width: 2, margin: { left: 14 }, flexShrink: 0 }}
             uiBackground={{ color: rgb(0x3ad1ff, 0.35) }}
           />
           <UiEntity uiTransform={{ flexGrow: 1, flexDirection: 'column', padding: { left: 14, top: 2 } }}>
-            <CardStats />
+            <LobbyStats />
           </UiEntity>
         </UiEntity>
       )}
@@ -970,25 +996,27 @@ function CircuitCard() {
   )
 }
 
-/** Standings under the card during the race, with your score in the header. */
+/**
+ * Standings under the race card: three thin rows, no header. The three that matter while
+ * driving are the car ahead, you and the car behind; the leader can wait for the results.
+ */
 function Standings() {
   if (!inRace() || hud.phase === 'finished' || hud.standings.length === 0) return null
   const myId = myCarId()
+  const sorted = hud.standings.slice().sort((a, b) => a.rank - b.rank)
+  const me = sorted.findIndex((s) => s.id === myId)
+  const first = Math.max(0, Math.min(sorted.length - 3, me - 1))
   return (
     <UiEntity
       uiTransform={{
-        width: CARD_WIDTH + 4,
+        width: RACE_CARD_WIDTH + 4,
         flexDirection: 'column',
-        padding: { left: 10, right: 12, top: 12, bottom: 10 },
+        padding: { left: 6, right: 8, top: 6, bottom: 6 },
         margin: { right: FRAME_GLOW - 2, top: 2 }
       }}
       uiBackground={BG_SOFT}
     >
-      <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', padding: { left: 10, right: 8 }, margin: { bottom: 4 } }}>
-        <Label value="STANDINGS" fontSize={12} color={CAPTION} textAlign="middle-left" uiTransform={{ flexGrow: 1 }} />
-        <Label value={`SCORE ${hud.score}`} fontSize={12} color={CAPTION} textAlign="middle-right" />
-      </UiEntity>
-      {hud.standings.slice(0, 6).map((s) => (
+      {sorted.slice(first, first + 3).map((s) => (
         <StandingRow key={String(s.id)} s={s} mine={s.id === myId} big={false} />
       ))}
     </UiEntity>
