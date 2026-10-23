@@ -284,11 +284,11 @@ for (const name of ['flag', 'mode', 'robot', 'laps', 'person', 'people', 'play',
 const TRACK_CARDS: Partial<Record<string, { thumb: string; blurb: string }>> = {
   city: {
     thumb: 'images/ui/thumb-city.png',
-    blurb: 'Circuito urbano · salto y techo invertido'
+    blurb: 'Urban circuit · jump and inverted ceiling'
   },
   skyline: {
     thumb: 'images/ui/thumb-skyline.png',
-    blurb: 'Azoteas con huecos · túnel invertido'
+    blurb: 'Rooftops with gaps · inverted tunnel'
   }
 }
 
@@ -496,8 +496,8 @@ function lobbyStatus(): string {
 }
 
 function voteLine(): string {
-  if (TRACK_IDS.every((id) => (hud.votes[id] ?? 0) === 0)) return `SIN VOTOS · sigue ${trackById(hud.track).name}`
-  return `VOTOS · ${TRACK_IDS.map((id) => `${trackById(id).name} ${hud.votes[id] ?? 0}`).join(' · ')} · empate: sorteo`
+  if (TRACK_IDS.every((id) => (hud.votes[id] ?? 0) === 0)) return `NO VOTES · ${trackById(hud.track).name} STAYS`
+  return `VOTES · ${TRACK_IDS.map((id) => `${trackById(id).name} ${hud.votes[id] ?? 0}`).join(' · ')} · tie: random draw`
 }
 
 /**
@@ -511,7 +511,7 @@ function TrackCarousel() {
   const count = TRACK_IDS.length
   const track = trackById(shown)
   const face = TRACK_CARDS[shown]
-  const km = (track.lapLength / 1000).toFixed(1).replace('.', ',')
+  const km = (track.lapLength / 1000).toFixed(1)
   const voted = hud.myVote === shown
   const arrow = (name: string, step: number) => (
     <UiEntity
@@ -555,7 +555,7 @@ function TrackCarousel() {
             uiBackground={{ color: voted ? ACCENT : rgb(0x040c18, 0.75) }}
           >
             <Label
-              value={voted ? 'TU VOTO' : 'CLIC PARA VOTAR'}
+              value={voted ? 'YOUR VOTE' : 'CLICK TO VOTE'}
               fontSize={u(11)}
               color={voted ? ON_ACCENT : CAPTION}
               textAlign="middle-center"
@@ -729,8 +729,8 @@ function LobbyCard() {
 
       <Heading icon="mode" title="GAME MODE" />
       <UiEntity uiTransform={{ width: '100%', flexDirection: 'row' }}>
-        <ModeCard mode="solo" icon="person" title="SOLO" blurb="Contra el reloj y los bots" />
-        <ModeCard mode="multiplayer" icon="people" title="MULTI" blurb="Con otros pilotos" />
+        <ModeCard mode="solo" icon="person" title="SOLO" blurb="Against the clock and the bots" />
+        <ModeCard mode="multiplayer" icon="people" title="MULTI" blurb="With other drivers" />
       </UiEntity>
       <UiEntity uiTransform={{ width: '100%', height: u(10) }} />
 
@@ -962,9 +962,9 @@ function Stat(props: { label: string; value: string; suffix?: string; color?: Co
 function LobbyStats() {
   return (
     <UiEntity uiTransform={{ width: '100%', flexDirection: 'column' }}>
-      <Stat label="PILOTOS" value={String(hud.pilots)} />
-      <Stat label="LISTOS" value={String(hud.ready)} suffix={`/${hud.pilots}`} />
-      <Stat label="PUERTA" value={hud.joining ? clock(hud.phaseMs) : '—'} color={hud.joining ? ACCENT : CAPTION} />
+      <Stat label="DRIVERS" value={String(hud.pilots)} />
+      <Stat label="READY" value={String(hud.ready)} suffix={`/${hud.pilots}`} />
+      <Stat label="DOOR" value={hud.joining ? clock(hud.phaseMs) : '—'} color={hud.joining ? ACCENT : CAPTION} />
     </UiEntity>
   )
 }
