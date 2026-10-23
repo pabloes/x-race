@@ -29,6 +29,7 @@ import { TRACK_IDS, trackById, type TrackId } from '../../shared/tracks'
 import { activeTrack } from './active-track'
 import { touch } from './input'
 import { isMobile } from './platform'
+import { getRealm } from '~system/Runtime'
 
 /**
  * What the menu can ask the server to do. `index.ts` fills these in; the UI never
@@ -305,13 +306,16 @@ const MINIMAPS: Partial<Record<TrackId, string>> = {
 /** Distance from the screen edges to the panels' visible edges. */
 const EDGE = 32
 const LOGO_WIDTH = 400
-const LOGO_HEIGHT = 100
 
-const LOBBY_TOP = 200
 const LOBBY_WIDTH = 480
-const LOBBY_HEIGHT = 640
 /** Inside the setup card: the glow band, then the padding that lines the cards up. */
 const LOBBY_INNER = LOBBY_WIDTH - 2 * 16
+/**
+ * The setup card's content height at scale 1, summed from the sections below. Only used to
+ * tell whether it fits: when it does not, the card stops at the chat and scrolls.
+ */
+const LOBBY_CONTENT = 590
+const LOBBY_PADDING = 34
 
 const CARD_WIDTH = 472
 /** Side of the lobby card's track map, in pixels. */
@@ -325,6 +329,86 @@ const SPEED_WIDTH = 405
 /** km/h at which the speed bar is full: a little over flat out on boost. */
 const SPEED_BAR_FULL = 240
 const SPEED_SEGMENTS = 12
+
+/**
+ * The explorer's own HUD, which draws over the scene's UI and so has to be kept clear of.
+ * Measured on the desktop explorer, in its pixels, not ours (see `screenLayout`):
+ *  - a rail of buttons down the left edge;
+ *  - the scene panel ("RELOAD SCENE") at the top left, beside the rail;
+ *  - the chat field at the bottom left (the open chat and the Nearby list cover more, but
+ *    only while the player has them open);
+ *  - LOCAL TOOLS at the top right, only in preview.
+ */
+const SAFE_RAIL = 56
+const SAFE_SCENE_PANEL = { width: 300, height: 120 }
+const SAFE_CHAT = { width: 380, height: 70 }
+const SAFE_LOCAL_TOOLS = { width: 150, height: 160 }
+/** Below this many explorer pixels across, the setup card takes the whole width and scrolls. */
+const NARROW_WIDTH = 900
+
+type ScreenLayout = {
+  /** The canvas in virtual pixels: never less than VIRTUAL_WIDTH x VIRTUAL_HEIGHT. */
+  width: number
+  height: number
+  /** Virtual pixels per explorer pixel, to turn the SAFE_* sizes into ours. */
+  e: number
+  narrow: boolean
+}
+
+/** Whether this is a preview, where the explorer adds LOCAL TOOLS at the top right. */
+let preview = false
+
+/**
+ * Where the explorer's HUD falls in our pixels.
+ *
+ * The explorer draws its own HUD at a fixed size in its pixels while ours is scaled to fit
+ * the window, so the smaller the window, the more of our screen it covers: in a 640 px
+ * window the scene panel alone is a third of the width. `UiCanvasInformation` reports the
+ * canvas in device pixels and the pixel ratio beside it; an explorer pixel is `ratio`
+ * device pixels and a virtual one is `scale`, hence `e`.
+ */
+function screenLayout(): ScreenLayout {
+  const canvas = UiCanvasInformation.getOrNull(engine.RootEntity)
+  const deviceWidth = canvas !== null && canvas.width > 0 ? canvas.width : VIRTUAL_WIDTH
+  const deviceHeight = canvas !== null && canvas.height > 0 ? canvas.height : VIRTUAL_HEIGHT
+  const ratio = canvas !== null && canvas.devicePixelRatio > 0 ? canvas.devicePixelRatio : 1
+  const scale = Math.min(deviceWidth / VIRTUAL_WIDTH, deviceHeight / VIRTUAL_HEIGHT)
+  return {
+    width: deviceWidth / scale,
+    height: deviceHeight / scale,
+    e: ratio / scale,
+    narrow: deviceWidth / ratio < NARROW_WIDTH
+  }
+}
+
+/** This frame's layout; `Hud` measures it once before drawing anything. */
+let screen: ScreenLayout = { width: VIRTUAL_WIDTH, height: VIRTUAL_HEIGHT, e: 1, narrow: false }
+
+/** Left edge clear of the rail, and right of the scene panel, in virtual pixels. */
+function clearOfRail(): number {
+  return (SAFE_RAIL + 16) * screen.e
+}
+function clearOfScenePanel(): number {
+  return (SAFE_RAIL + SAFE_SCENE_PANEL.width + 16) * screen.e
+}
+/** Top edge of the right-hand column: under LOCAL TOOLS in preview. */
+function rightColumnTop(): number {
+  return preview ? (SAFE_LOCAL_TOOLS.height + 12) * screen.e : EDGE
+}
+/** Distance from the bottom that clears the chat field. */
+function clearOfChat(): number {
+  return (SAFE_CHAT.height + 12) * screen.e
+}
+
+/**
+ * The setup card's scale. 1 on any normal window; on a narrow one the card spans the
+ * width and everything in it grows with it, or its text would be a few pixels high.
+ * Set by `LobbyCard` before it draws its sections, which read it through `u`.
+ */
+let lobbyScale = 1
+function u(n: number): number {
+  return n * lobbyScale
+}
 
 function clock(ms: number): string {
   const s = Math.max(0, Math.ceil(ms / 1000))
@@ -356,19 +440,19 @@ function Icon(props: { name: string; size: number; key?: string; margin?: number
 
 /** A section heading in the setup card: icon, then the title. */
 function Heading(props: { icon: string; title: string; size?: number; children?: unknown }) {
-  const size = props.size ?? 20
+  const size = u(props.size ?? 20)
   return (
     <UiEntity
       uiTransform={{
         width: '100%',
-        height: size + 6,
+        height: size + u(6),
         flexDirection: 'row',
         alignItems: 'center',
         padding: { left: CARD_GLOW, right: CARD_GLOW },
-        margin: { bottom: 6 }
+        margin: { bottom: u(6) }
       }}
     >
-      <Icon name={props.icon} size={size} margin={10} />
+      <Icon name={props.icon} size={size} margin={u(10)} />
       <Label value={props.title} fontSize={size} color={INK} textAlign="middle-left" textWrap="nowrap" />
       {props.children}
     </UiEntity>
@@ -377,15 +461,26 @@ function Heading(props: { icon: string; title: string; size?: number; children?:
 
 // --- Lobby: logo and setup card -----------------------------------------------------------
 
+/**
+ * The logo, to the right of the explorer's scene panel and as wide as the room there
+ * allows: up to the circuit card, or to LOCAL TOOLS in preview. Too squeezed to read, it
+ * is left out rather than drawn as a smudge.
+ */
 function Logo() {
   if (hud.phase !== 'lobby' && !hud.spectator) return null
+  const left = clearOfScenePanel()
+  const rightLimit = screen.narrow
+    ? screen.width - EDGE - (preview ? SAFE_LOCAL_TOOLS.width * screen.e : 0)
+    : screen.width - EDGE - CARD_WIDTH - 24
+  const width = Math.min(LOGO_WIDTH, rightLimit - left)
+  if (width < 160) return null
   return (
     <UiEntity
       uiTransform={{
         positionType: 'absolute',
-        position: { left: EDGE + 4, top: 26 },
-        width: LOGO_WIDTH,
-        height: LOGO_HEIGHT
+        position: { left, top: 14 * screen.e },
+        width,
+        height: width / 4
       }}
       uiBackground={BG_LOGO}
     />
@@ -420,48 +515,48 @@ function TrackCarousel() {
   const voted = hud.myVote === shown
   const arrow = (name: string, step: number) => (
     <UiEntity
-      uiTransform={{ width: 36, height: '100%', justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}
+      uiTransform={{ width: u(36), height: '100%', justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}
       onMouseDown={() => menu.vote(TRACK_IDS[(index + step + count) % count])}
     >
-      <Icon name={name} size={26} />
+      <Icon name={name} size={u(26)} />
     </UiEntity>
   )
   return (
     <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', padding: { left: CARD_GLOW, right: CARD_GLOW } }}>
-      <UiEntity uiTransform={{ width: '100%', height: 98, flexDirection: 'row', alignItems: 'center' }}>
+      <UiEntity uiTransform={{ width: '100%', height: u(98), flexDirection: 'row', alignItems: 'center' }}>
         {arrow('left', -1)}
         <UiEntity
-          uiTransform={{ flexGrow: 1, height: '100%', margin: { left: 6, right: 6 } }}
+          uiTransform={{ flexGrow: 1, height: '100%', margin: { left: u(6), right: u(6) } }}
           uiBackground={face !== undefined ? image(face.thumb) : { color: WELL }}
           onMouseDown={() => menu.vote(shown)}
         >
           <Label
             value={track.name}
-            fontSize={28}
+            fontSize={u(28)}
             color={INK}
             textAlign="bottom-left"
             textWrap="nowrap"
-            uiTransform={{ positionType: 'absolute', position: { left: 12, bottom: 26 } }}
+            uiTransform={{ positionType: 'absolute', position: { left: u(12), bottom: u(26) } }}
           />
           <Label
             value={face !== undefined ? `${face.blurb.replace(' · ', ` · ${km} km · `)}` : `${km} km`}
-            fontSize={12}
+            fontSize={u(12)}
             color={MUTED}
             textAlign="bottom-left"
             textWrap="nowrap"
-            uiTransform={{ positionType: 'absolute', position: { left: 12, bottom: 8 } }}
+            uiTransform={{ positionType: 'absolute', position: { left: u(12), bottom: u(8) } }}
           />
           <UiEntity
             uiTransform={{
               positionType: 'absolute',
-              position: { right: 10, top: 8 },
-              padding: { left: 8, right: 8, top: 3, bottom: 3 }
+              position: { right: u(10), top: u(8) },
+              padding: { left: u(8), right: u(8), top: u(3), bottom: u(3) }
             }}
             uiBackground={{ color: voted ? ACCENT : rgb(0x040c18, 0.75) }}
           >
             <Label
               value={voted ? 'TU VOTO' : 'CLIC PARA VOTAR'}
-              fontSize={11}
+              fontSize={u(11)}
               color={voted ? ON_ACCENT : CAPTION}
               textAlign="middle-center"
               textWrap="nowrap"
@@ -473,24 +568,24 @@ function TrackCarousel() {
       <UiEntity
         uiTransform={{
           width: '100%',
-          height: 20,
+          height: u(20),
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: { left: 42, right: 42 },
-          margin: { top: 6 }
+          padding: { left: u(42), right: u(42) },
+          margin: { top: u(6) }
         }}
       >
         <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center' }}>
           {TRACK_IDS.map((id, i) => (
             <UiEntity
               key={id}
-              uiTransform={{ width: 9, height: 9, margin: { right: 8 } }}
+              uiTransform={{ width: u(9), height: u(9), margin: { right: u(8) } }}
               uiBackground={i === index ? BG_DOT_ON : BG_DOT_OFF}
             />
           ))}
         </UiEntity>
-        <Label value={voteLine()} fontSize={12} color={MUTED} textAlign="middle-right" textWrap="nowrap" />
+        <Label value={voteLine()} fontSize={u(12)} color={MUTED} textAlign="middle-right" textWrap="nowrap" />
       </UiEntity>
     </UiEntity>
   )
@@ -502,18 +597,18 @@ function ModeCard(props: { mode: RaceMode; icon: string; title: string; blurb: s
     <UiEntity
       uiTransform={{
         width: '50%',
-        height: 72 + 2 * CARD_GLOW,
+        height: u(72) + 2 * CARD_GLOW,
         flexDirection: 'row',
         alignItems: 'center',
-        padding: { left: CARD_GLOW + 14, right: CARD_GLOW + 8 }
+        padding: { left: CARD_GLOW + u(14), right: CARD_GLOW + u(8) }
       }}
       uiBackground={on ? BG_ON : BG_OFF}
       onMouseDown={() => menu.setMode(props.mode)}
     >
-      <Icon name={props.icon} size={28} margin={12} />
+      <Icon name={props.icon} size={u(28)} margin={u(12)} />
       <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'flex-start' }}>
-        <Label value={props.title} fontSize={22} color={INK} textAlign="middle-left" textWrap="nowrap" />
-        <Label value={props.blurb} fontSize={12} color={MUTED} textAlign="middle-left" textWrap="nowrap" />
+        <Label value={props.title} fontSize={u(22)} color={INK} textAlign="middle-left" textWrap="nowrap" />
+        <Label value={props.blurb} fontSize={u(12)} color={MUTED} textAlign="middle-left" textWrap="nowrap" />
       </UiEntity>
     </UiEntity>
   )
@@ -523,11 +618,11 @@ function ModeCard(props: { mode: RaceMode; icon: string; title: string; blurb: s
 function Choice(props: { key?: string; label: string; on: boolean; onClick: () => void }) {
   return (
     <UiEntity
-      uiTransform={{ flexGrow: 1, flexBasis: 0, height: 52 + 2 * CARD_GLOW, justifyContent: 'center', alignItems: 'center' }}
+      uiTransform={{ flexGrow: 1, flexBasis: 0, height: u(52) + 2 * CARD_GLOW, justifyContent: 'center', alignItems: 'center' }}
       uiBackground={props.on ? BG_ON : BG_OFF}
       onMouseDown={props.onClick}
     >
-      <Label value={props.label} fontSize={24} color={INK} textAlign="middle-center" textWrap="nowrap" />
+      <Label value={props.label} fontSize={u(24)} color={INK} textAlign="middle-center" textWrap="nowrap" />
     </UiEntity>
   )
 }
@@ -535,21 +630,21 @@ function Choice(props: { key?: string; label: string; on: boolean; onClick: () =
 function BotsStepper() {
   const step = (label: string, delta: number) => (
     <UiEntity
-      uiTransform={{ width: 50, height: '100%', justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}
+      uiTransform={{ width: u(50), height: '100%', justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}
       uiBackground={{ color: rgb(0xffffff, 0.06) }}
       onMouseDown={() => menu.setBots(hud.bots + delta)}
     >
-      <Label value={label} fontSize={24} color={ACCENT} textAlign="middle-center" />
+      <Label value={label} fontSize={u(24)} color={ACCENT} textAlign="middle-center" />
     </UiEntity>
   )
   return (
     <UiEntity
-      uiTransform={{ width: '100%', height: 52 + 2 * CARD_GLOW, flexDirection: 'row', padding: CARD_GLOW + 2 }}
+      uiTransform={{ width: '100%', height: u(52) + 2 * CARD_GLOW, flexDirection: 'row', padding: CARD_GLOW + 2 }}
       uiBackground={BG_OFF}
     >
       {step('−', -1)}
       <UiEntity uiTransform={{ flexGrow: 1, height: '100%', justifyContent: 'center', alignItems: 'center' }}>
-        <Label value={String(hud.bots)} fontSize={26} color={INK} textAlign="middle-center" />
+        <Label value={String(hud.bots)} fontSize={u(26)} color={INK} textAlign="middle-center" />
       </UiEntity>
       {step('+', 1)}
     </UiEntity>
@@ -559,7 +654,7 @@ function BotsStepper() {
 /** The big button at the foot of the card, and the outlined one under it. */
 function ActionButton(props: { primary: boolean; enabled?: boolean; icon?: string; label: string; onClick: () => void }) {
   const enabled = props.enabled !== false
-  const height = (props.primary ? 70 : 54) + 2 * CARD_GLOW
+  const height = u(props.primary ? 70 : 54) + 2 * CARD_GLOW
   return (
     <UiEntity
       uiTransform={{
@@ -568,15 +663,15 @@ function ActionButton(props: { primary: boolean; enabled?: boolean; icon?: strin
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
-        margin: { top: props.primary ? 0 : 4 }
+        margin: { top: props.primary ? 0 : u(4) }
       }}
       uiBackground={!enabled ? BG_OFF : props.primary ? BG_GO : BG_OUTLINE}
       onMouseDown={enabled ? props.onClick : undefined}
     >
-      {props.icon !== undefined && enabled ? <Icon name={props.icon} size={props.primary ? 24 : 22} margin={14} /> : null}
+      {props.icon !== undefined && enabled ? <Icon name={props.icon} size={u(props.primary ? 24 : 22)} margin={u(14)} /> : null}
       <Label
         value={props.label}
-        fontSize={props.primary ? 32 : 24}
+        fontSize={u(props.primary ? 32 : 24)}
         color={props.primary && enabled ? ON_GREEN : INK}
         textAlign="middle-center"
         textWrap="nowrap"
@@ -591,8 +686,11 @@ function ActionButton(props: { primary: boolean; enabled?: boolean; icon?: strin
  * It mirrors the server's room settings rather than holding its own, so two players
  * looking at the same room see the same thing, and it is only drawn when there is a
  * decision to make: between races, or while spectating one. Spectating folds it into a
- * tab under the logo; it slides out to the left rather than vanishing, so it is obvious
- * where it went.
+ * tab; it slides out to the left rather than vanishing, so it is obvious where it went.
+ *
+ * It keeps clear of the explorer's HUD: right of the rail, under the scene panel, and
+ * above the chat field. When that leaves too little height it scrolls; on a narrow window
+ * it spans the width and scales up with it (see `lobbyScale`).
  */
 function LobbyCard() {
   const inLobby = hud.phase === 'lobby'
@@ -604,10 +702,95 @@ function LobbyCard() {
   if (hud.spectator && !hud.wasSpectator) hud.menuMinimised = true
   hud.wasSpectator = hud.spectator
 
+  const e = screen.e
+  const visibleLeft = clearOfRail()
+  // Under the scene panel; in preview on a narrow window the card also runs under LOCAL TOOLS.
+  const top = (screen.narrow && preview ? SAFE_LOCAL_TOOLS.height + 12 : SAFE_SCENE_PANEL.height + 10) * e
+  const width = screen.narrow ? screen.width - visibleLeft - EDGE : LOBBY_WIDTH
+  lobbyScale = width / LOBBY_WIDTH
+  const room = screen.height - clearOfChat() - top
+  const natural = u(LOBBY_CONTENT + LOBBY_PADDING)
+  const scrolls = natural > room
+
   const t = hud.menuAnim
   const ease = t * t * (3 - 2 * t)
-  const left = EDGE + 4 - FRAME_GLOW - (1 - ease) * (LOBBY_WIDTH + 80)
+  const left = visibleLeft - FRAME_GLOW - (1 - ease) * (width + visibleLeft + 40)
   const showTab = ease < 0.5
+
+  const sections = (
+    <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', flexShrink: 0 }}>
+      <Heading icon="flag" title="RACE SETUP" size={24}>
+        <UiEntity uiTransform={{ flexGrow: 1 }} />
+        <Label value={lobbyStatus()} fontSize={u(12)} color={CAPTION} textAlign="middle-right" textWrap="nowrap" />
+      </Heading>
+      <UiEntity uiTransform={{ width: '100%', height: u(8) }} />
+      <TrackCarousel />
+      <UiEntity uiTransform={{ width: '100%', height: u(14) }} />
+
+      <Heading icon="mode" title="GAME MODE" />
+      <UiEntity uiTransform={{ width: '100%', flexDirection: 'row' }}>
+        <ModeCard mode="solo" icon="person" title="SOLO" blurb="Contra el reloj y los bots" />
+        <ModeCard mode="multiplayer" icon="people" title="MULTI" blurb="Con otros pilotos" />
+      </UiEntity>
+      <UiEntity uiTransform={{ width: '100%', height: u(10) }} />
+
+      <UiEntity uiTransform={{ width: '100%', flexDirection: 'row' }}>
+        <UiEntity uiTransform={{ width: u(LOBBY_INNER * 0.44), flexDirection: 'column' }}>
+          <Heading icon="robot" title="BOTS" />
+          <BotsStepper />
+        </UiEntity>
+        <UiEntity uiTransform={{ flexGrow: 1, flexDirection: 'column' }}>
+          <Heading icon="laps" title="LAPS" />
+          <UiEntity uiTransform={{ width: '100%', flexDirection: 'row' }}>
+            {[1, 3, 5].map((laps) => (
+              <Choice key={String(laps)} label={String(laps)} on={hud.laps === laps} onClick={() => menu.setLaps(laps)} />
+            ))}
+          </UiEntity>
+        </UiEntity>
+      </UiEntity>
+
+      <UiEntity uiTransform={{ width: '100%', height: u(18) }} />
+
+      {hud.spectator ? (
+        <ActionButton
+          primary
+          icon="play"
+          label="DRIVE"
+          onClick={() => {
+            menu.setSpectator(false)
+            hud.menuMinimised = false
+          }}
+        />
+      ) : (
+        <ActionButton
+          primary
+          icon="play"
+          enabled={inLobby && !hud.joining}
+          label={hud.joining ? `DOORS OPEN · ${Math.max(0, Math.ceil(hud.phaseMs / 1000))}` : 'START RACE'}
+          onClick={() => menu.start()}
+        />
+      )}
+      {hud.spectator ? (
+        <ActionButton
+          primary={false}
+          label="HIDE MENU"
+          onClick={() => {
+            hud.menuMinimised = true
+          }}
+        />
+      ) : (
+        <ActionButton
+          primary={false}
+          icon="eye"
+          label="SPECTATE"
+          onClick={() => {
+            menu.setSpectator(true)
+            hud.menuMinimised = true
+          }}
+        />
+      )}
+    </UiEntity>
+  )
 
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { left: 0, top: 0 }, width: '100%', height: '100%' }}>
@@ -615,7 +798,7 @@ function LobbyCard() {
         <UiEntity
           uiTransform={{
             positionType: 'absolute',
-            position: { left: EDGE + 4 - 2, top: LOBBY_TOP - 2 },
+            position: { left: visibleLeft - 2, top: top - 2 },
             height: 44,
             flexDirection: 'row',
             alignItems: 'center',
@@ -640,83 +823,20 @@ function LobbyCard() {
         <UiEntity
           uiTransform={{
             positionType: 'absolute',
-            position: { left, top: LOBBY_TOP - FRAME_GLOW },
-            width: LOBBY_WIDTH + 2 * FRAME_GLOW,
-            height: LOBBY_HEIGHT + 2 * FRAME_GLOW,
+            position: { left, top: top - FRAME_GLOW },
+            width: width + 2 * FRAME_GLOW,
+            height: scrolls ? room + 2 * FRAME_GLOW : 'auto',
             flexDirection: 'column',
-            padding: { left: FRAME_GLOW + 16, right: FRAME_GLOW + 16, top: FRAME_GLOW + 18, bottom: FRAME_GLOW + 16 }
+            padding: { left: FRAME_GLOW + 16, right: FRAME_GLOW + 16, top: FRAME_GLOW + u(18), bottom: FRAME_GLOW + u(16) }
           }}
           uiBackground={BG_LOBBY}
         >
-          <Heading icon="flag" title="RACE SETUP" size={24}>
-            <UiEntity uiTransform={{ flexGrow: 1 }} />
-            <Label value={lobbyStatus()} fontSize={12} color={CAPTION} textAlign="middle-right" textWrap="nowrap" />
-          </Heading>
-          <UiEntity uiTransform={{ width: '100%', height: 8 }} />
-          <TrackCarousel />
-          <UiEntity uiTransform={{ width: '100%', height: 14 }} />
-
-          <Heading icon="mode" title="GAME MODE" />
-          <UiEntity uiTransform={{ width: '100%', flexDirection: 'row' }}>
-            <ModeCard mode="solo" icon="person" title="SOLO" blurb="Contra el reloj y los bots" />
-            <ModeCard mode="multiplayer" icon="people" title="MULTI" blurb="Con otros pilotos" />
-          </UiEntity>
-          <UiEntity uiTransform={{ width: '100%', height: 10 }} />
-
-          <UiEntity uiTransform={{ width: '100%', flexDirection: 'row' }}>
-            <UiEntity uiTransform={{ width: LOBBY_INNER * 0.44, flexDirection: 'column' }}>
-              <Heading icon="robot" title="BOTS" />
-              <BotsStepper />
+          {scrolls ? (
+            <UiEntity uiTransform={{ width: '100%', flexGrow: 1, flexDirection: 'column', overflow: 'scroll' }}>
+              {sections}
             </UiEntity>
-            <UiEntity uiTransform={{ flexGrow: 1, flexDirection: 'column' }}>
-              <Heading icon="laps" title="LAPS" />
-              <UiEntity uiTransform={{ width: '100%', flexDirection: 'row' }}>
-                {[1, 3, 5].map((laps) => (
-                  <Choice key={String(laps)} label={String(laps)} on={hud.laps === laps} onClick={() => menu.setLaps(laps)} />
-                ))}
-              </UiEntity>
-            </UiEntity>
-          </UiEntity>
-
-          <UiEntity uiTransform={{ width: '100%', flexGrow: 1 }} />
-
-          {hud.spectator ? (
-            <ActionButton
-              primary
-              icon="play"
-              label="DRIVE"
-              onClick={() => {
-                menu.setSpectator(false)
-                hud.menuMinimised = false
-              }}
-            />
           ) : (
-            <ActionButton
-              primary
-              icon="play"
-              enabled={inLobby && !hud.joining}
-              label={hud.joining ? `DOORS OPEN · ${Math.max(0, Math.ceil(hud.phaseMs / 1000))}` : 'START RACE'}
-              onClick={() => menu.start()}
-            />
-          )}
-          {hud.spectator ? (
-            <ActionButton
-              primary={false}
-              label="HIDE MENU"
-              onClick={() => {
-                hud.menuMinimised = true
-              }}
-            />
-          ) : (
-            <ActionButton
-              primary={false}
-              icon="eye"
-              label="SPECTATE"
-              onClick={() => {
-                menu.setSpectator(true)
-                hud.menuMinimised = true
-              }}
-            />
+            sections
           )}
         </UiEntity>
       ) : null}
@@ -1024,11 +1144,13 @@ function Standings() {
 }
 
 function RightColumn() {
+  // A narrow lobby is the setup card's, all of it; the room figures can wait.
+  if (screen.narrow && hud.phase === 'lobby' && !hud.menuMinimised) return null
   return (
     <UiEntity
       uiTransform={{
         positionType: 'absolute',
-        position: { right: EDGE - FRAME_GLOW, top: EDGE - FRAME_GLOW },
+        position: { right: EDGE - FRAME_GLOW, top: rightColumnTop() - FRAME_GLOW },
         flexDirection: 'column',
         alignItems: 'flex-end'
       }}
@@ -1049,7 +1171,8 @@ function LeaveTag() {
     <UiEntity
       uiTransform={{
         positionType: 'absolute',
-        position: { left: EDGE + 2, top: EDGE - 2 },
+        // Beside the explorer's scene panel, not under it.
+        position: { left: clearOfScenePanel() - 2, top: 14 * screen.e },
         height: 40,
         justifyContent: 'center',
         padding: { left: 16, right: 20 }
@@ -1212,7 +1335,8 @@ function Speedometer() {
     <UiEntity
       uiTransform={{
         positionType: 'absolute',
-        position: { left: EDGE + 4 - FRAME_GLOW, bottom: EDGE - FRAME_GLOW },
+        // Right of the rail and above the chat field.
+        position: { left: clearOfRail() - FRAME_GLOW, bottom: clearOfChat() - FRAME_GLOW },
         flexDirection: 'row',
         alignItems: 'flex-end'
       }}
@@ -1377,7 +1501,9 @@ const CONTROLS_PEEK_MS = 5000
 function BottomRight() {
   const mobile = isMobile()
   const folded = hud.phase === 'racing' || hud.phase === 'finished'
-  const showLegend = !mobile && (!folded || hud.controlsMs > 0)
+  // A narrow lobby has the setup card across the screen, legend or not.
+  const crowded = screen.narrow && hud.phase === 'lobby' && !hud.menuMinimised
+  const showLegend = !mobile && !crowded && (!folded || hud.controlsMs > 0)
   return (
     <UiEntity
       uiTransform={{
@@ -1472,6 +1598,7 @@ function MobileControls() {
 }
 
 function Hud() {
+  screen = screenLayout()
   return (
     <UiEntity
       uiTransform={{
@@ -1497,6 +1624,12 @@ function Hud() {
 
 export function setupUi(): void {
   ReactEcsRenderer.setUiRenderer(Hud, { virtualWidth: VIRTUAL_WIDTH, virtualHeight: VIRTUAL_HEIGHT })
+  // Asked once: preview adds LOCAL TOOLS at the top right, and the right column moves under it.
+  void getRealm({})
+    .then(({ realmInfo }) => {
+      preview = realmInfo?.isPreview === true
+    })
+    .catch(() => {})
   // The "?" legend's timer. The UI's own, so it lives here rather than in the game loop.
   engine.addSystem((dt: number) => {
     if (hud.controlsMs > 0) hud.controlsMs = Math.max(0, hud.controlsMs - dt * 1000)
