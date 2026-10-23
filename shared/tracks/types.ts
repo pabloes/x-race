@@ -9,8 +9,8 @@ import type { Vec3 } from '../math'
 
 export type { Shot }
 
-/** Grows with every circuit added to `TRACKS` (skyline arrives with its definition). */
-export type TrackId = 'city'
+/** Grows with every circuit added to `TRACKS`. */
+export type TrackId = 'city' | 'skyline'
 
 /** Which scenery kit dresses the circuit, see docs/contracts/kit.md. */
 export type Theme = 'city' | 'neon'
