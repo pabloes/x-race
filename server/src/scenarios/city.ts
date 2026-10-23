@@ -33,6 +33,18 @@ export function cityScenarios(track: Track): Scenario[] {
       bits: speed > 28 ? BOOST : THROTTLE,
       requireCp: checkpointAfter(track, jumpIndex)
     })),
+    // The boost held through the flight pushes along the nose: the same launch has to come
+    // down at least 10 m further on, and on its wheels.
+    {
+      name: 'jump @ 30 m/s air boost',
+      start: approach(track, jumpIndex, 30),
+      speed: 30,
+      seconds: 7,
+      bits: BOOST,
+      boostInAir: true,
+      requireFartherThan: { scenario: 'jump @ 30 m/s', metres: 10 },
+      requireUpright: true
+    },
     // Thrusters: the space bar has to beat gravity from a standstill and extend a jump.
     {
       name: 'thrust standstill',

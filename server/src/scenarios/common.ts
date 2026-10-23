@@ -43,6 +43,10 @@ export type Scenario = {
   thrustOnHint?: boolean
   /** Hold the barrel roll key (E) only until the first trick, as a player taps it. */
   flipOnce?: boolean
+  /** Keep the boost lit in the air instead of letting go of everything on take-off. */
+  boostInAir?: boolean
+  /** Scenario passes if its first landing is this much further on than another scenario's. */
+  requireFartherThan?: { scenario: string; metres: number }
 }
 
 export const THROTTLE = InputBit.Throttle
