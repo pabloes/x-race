@@ -1,7 +1,8 @@
 /**
- * The pre-race cinematic, as data: a list of shots that the scene plays back while the
- * room is in its `intro` phase. Nothing here knows about cameras or entities, so the
- * server can validate a circuit's shots with the same code the scene plays them with.
+ * The circuit's flyover, as data: a list of shots that the scene plays on a loop behind the
+ * lobby menu, until the player starts the race or folds the menu. Nothing here knows about
+ * cameras or entities, so the server can validate a circuit's shots with the same code the
+ * scene plays them with.
  *
  * Shots are authored in the same scene-local metres as the track. A circuit may bring its
  * own hand-made shots (see `intros/`); any other gets `defaultIntro`, three shots computed
@@ -37,21 +38,13 @@ export type IntroTrack = {
 
 export const DEFAULT_FOV = 60
 
-/** How far the total may stray from the phase length before the shots are rejected. */
-const TOLERANCE_S = 0.5
-
 /**
- * Throws unless the shots add up to the intro phase, so a circuit whose cinematic ends
- * early (a frozen last frame) or late (cut off by the countdown) fails when it is built
- * rather than when somebody watches it.
+ * Throws on a shot that cannot be played, so a circuit with a broken flyover fails when it
+ * is built rather than when somebody opens the lobby. The total length is free: the
+ * flyover loops, and nobody waits for it to end.
  */
-export function validateIntro(shots: Shot[], introMs: number): void {
-  const total = shots.reduce((sum, s) => sum + s.seconds, 0)
-  if (shots.length === 0 || Math.abs(total - introMs / 1000) > TOLERANCE_S) {
-    throw new Error(
-      `intro: shots add up to ${total.toFixed(2)} s, the phase lasts ${introMs / 1000} s (±${TOLERANCE_S})`
-    )
-  }
+export function validateIntro(shots: Shot[]): void {
+  if (shots.length === 0) throw new Error('intro: a circuit needs at least one shot')
   shots.forEach((s, i) => {
     if (s.path.length < 2) throw new Error(`intro: shot ${i} needs at least 2 path points`)
     if (Array.isArray(s.look) && s.look.length !== s.path.length) {
@@ -131,8 +124,10 @@ function mainFeature(track: IntroTrack): Vec3 | null {
  * pass over the main feature, and a pull-back to the grid looking at the cars. A circuit
  * with no feature gives that second shot's time to the sweep.
  */
-export function defaultIntro(track: IntroTrack, introMs = 12000): Shot[] {
-  const total = introMs / 1000
+export function defaultIntro(track: IntroTrack): Shot[] {
+  // Seconds per shot: the loop is about twelve seconds, which is long enough to see the
+  // circuit and short enough that somebody in the lobby sees it all go round.
+  const total = 12
   const line = track.centreline.map((p) => p.pos)
   const at = (i: number): Vec3 => line[Math.min(Math.max(i, 0), line.length - 1)]
   const feature = mainFeature(track)
@@ -175,6 +170,6 @@ export function defaultIntro(track: IntroTrack, introMs = 12000): Shot[] {
     fov: 50
   })
 
-  validateIntro(shots, introMs)
+  validateIntro(shots)
   return shots
 }

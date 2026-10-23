@@ -9,7 +9,6 @@
  */
 
 import { gridCentre, validateIntro, type Shot } from '../cinematic'
-import { RACE } from '../constants'
 import { vadd, vscale, type Vec3 } from '../math'
 import type { Track } from '../tracks/types'
 
@@ -112,6 +111,6 @@ export function cityIntro(track: Track): Shot[] {
     }
   ]
 
-  validateIntro(shots, RACE.introMs)
+  validateIntro(shots)
   return shots
 }
