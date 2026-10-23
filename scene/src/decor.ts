@@ -44,9 +44,12 @@ let sinceReport = 0
 let peak = { entities: 0, tris: 0 }
 let installed = false
 
+/** True during the intro flyover: the camera is nowhere near the car, so it is the focus. */
+let cameraFocus = false
 /** The local car's position while it is driving, null when it is not (the avatar is used). */
-export function setDecorFocus(car: { x: number; z: number } | null): void {
+export function setDecorFocus(car: { x: number; z: number } | null, followCamera = false): void {
   carFocus = car
+  cameraFocus = followCamera
 }
 
 export function decorate(track: Track): void {
@@ -104,7 +107,7 @@ function streamSystem(dt: number): void {
   const elapsed = clock
   clock = 0
 
-  const focus = carFocus ?? avatarPosition()
+  const focus = cameraFocus ? cameraPosition() : carFocus ?? avatarPosition()
   if (focus === null) return
   const speed = lastFocus ? Math.hypot(focus.x - lastFocus.x, focus.z - lastFocus.z) / elapsed : 0
   lastFocus = { x: focus.x, z: focus.z }
@@ -135,6 +138,11 @@ function streamSystem(dt: number): void {
       )
     }
   }
+}
+
+function cameraPosition(): { x: number; z: number } | null {
+  const t = Transform.getOrNull(engine.CameraEntity)
+  return t ? { x: t.position.x, z: t.position.z } : null
 }
 
 function avatarPosition(): { x: number; z: number } | null {

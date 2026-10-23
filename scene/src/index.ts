@@ -159,7 +159,8 @@ function renderSystem(dt: number): void {
   // place of `follow`/`detach`: with scene/src/cinematic.ts merged, `introElapsedMs(race
   // phase, phaseMs, dt)` and then `playIntro(activeTrack(), activeTrack().intro, elapsed)`,
   // reading `connection.buffer.latestRace()` like the HUD does.
-  setDecorFocus(mine ? { x: mine.pos.x, z: mine.pos.z } : null)
+  // The intro flyover owns the camera, so the scenery follows it rather than the parked car.
+  setDecorFocus(mine ? { x: mine.pos.x, z: mine.pos.z } : null, hud.phase === 'intro')
   if (mine) {
     follow(mine, dt)
     hud.speedKmh = vlen(mine.vel) * 3.6 * SPEEDO_EXAGGERATION
