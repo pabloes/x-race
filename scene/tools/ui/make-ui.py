@@ -377,6 +377,32 @@ ICONS = {
 }
 
 
+# --- Checkpoint arrow --------------------------------------------------------------------
+
+ARROW_STEPS = 16
+
+
+def arrow(index, size=64):
+    """
+    The way-back arrow, turned `index` sixteenths of a turn clockwise from straight up
+    (straight ahead). The renderer cannot rotate UI, so every heading is its own image and
+    the HUD picks the nearest.
+    """
+    big = size * SS
+    m = Image.new('L', (big, big), 0)
+    d = ImageDraw.Draw(m)
+    u = big / 24.0
+    d.polygon([(12 * u, 2 * u), (21 * u, 13 * u), (15.5 * u, 13 * u), (15.5 * u, 22 * u),
+               (8.5 * u, 22 * u), (8.5 * u, 13 * u), (3 * u, 13 * u)], fill=255)
+    m = m.rotate(-360.0 * index / ARROW_STEPS, resample=Image.BICUBIC)
+    keyline = m.filter(ImageFilter.MaxFilter(SS * 2 + 1))
+    img = Image.new('RGBA', (big, big), (0, 0, 0, 0))
+    img = Image.alpha_composite(img, glow(keyline, ACCENT, 3, 0.5))
+    img = Image.alpha_composite(img, layer((4, 12, 24, 230), keyline))
+    img = Image.alpha_composite(img, layer(ACCENT + (255,), m))
+    return down(img, (size, size))
+
+
 # --- Logo ---------------------------------------------------------------------------------
 
 def logo_font(size):
@@ -656,6 +682,9 @@ def main():
 
     for name, (fn, colour) in ICONS.items():
         put(icon(fn, colour), f'icon-{name}.png')
+
+    for i in range(ARROW_STEPS):
+        put(arrow(i), f'arrow-{i:02d}.png')
 
     put(thumbnail(thumb_city), 'thumb-city.png')
     put(thumbnail(thumb_skyline), 'thumb-skyline.png')

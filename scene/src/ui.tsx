@@ -21,9 +21,10 @@
  */
 
 import ReactEcs, { Label, ReactEcsRenderer, UiEntity, type UiBackgroundProps } from '@dcl/sdk/react-ecs'
-import { engine, UiCanvasInformation } from '@dcl/sdk/ecs'
+import { engine, Transform, UiCanvasInformation } from '@dcl/sdk/ecs'
 import { Color4 } from '@dcl/sdk/math'
 import { CHARGE, RACE } from '../../shared/constants'
+import { yawDegrees } from '../../shared/math'
 import { CarFlag, formatTime, type RaceMode, type RacePhase, type Standing, type VoteCount } from '../../shared/protocol'
 import { TRACK_IDS, trackById, type TrackId } from '../../shared/tracks'
 import { activeTrack } from './active-track'
@@ -94,6 +95,8 @@ export type HudState = {
   pilots: number
   ready: number
   speedKmh: number
+  /** Which way your car points, in degrees clockwise from +Z, for the way-back arrow. */
+  headingDeg: number
   charge: number
   flags: number
   score: number
@@ -158,6 +161,7 @@ export const hud: HudState = {
   pilots: 0,
   ready: 0,
   speedKmh: 0,
+  headingDeg: 0,
   charge: 0,
   flags: 0,
   score: 0,
@@ -249,6 +253,9 @@ const BG_CHARGE = image('images/ui/charge-fill.png')
 const BG_DOT_ON = image('images/ui/dot-on.png')
 const BG_DOT_OFF = image('images/ui/dot-off.png')
 const BG_LOGO = image('images/ui/logo.png')
+/** The way-back arrow, one image per sixteenth of a turn (see `wayBack`). */
+const ARROWS: UiBackgroundProps[] = []
+for (let i = 0; i < 16; i++) ARROWS.push(image(`images/ui/arrow-${String(i).padStart(2, '0')}.png`))
 
 const ICON: Record<string, UiBackgroundProps> = {}
 for (const name of ['flag', 'mode', 'robot', 'laps', 'person', 'people', 'play', 'eye', 'gas', 'bolt', 'question', 'left', 'right', 'up', 'pedal']) {
@@ -1237,6 +1244,72 @@ function Toast() {
   )
 }
 
+/**
+ * Lost: you are getting further from the next checkpoint, or facing well away from it.
+ *
+ * Getting further means for a full second, so a wide line through a corner does not set it
+ * off; facing away means more than 100 degrees off, which no racing line ever is. Either
+ * way an arrow appears at the top, pointing at the checkpoint as seen from the chase
+ * camera, with the distance, and goes again once you are back on course.
+ */
+const wayBack = { shown: false, index: 0, meters: 0, lastDistance: -1, growingMs: 0 }
+
+/** Degrees folded into (-180, 180]. */
+function wrapDegrees(a: number): number {
+  const r = ((a % 360) + 360) % 360
+  return r > 180 ? r - 360 : r
+}
+
+function updateWayBack(dt: number): void {
+  const mine = hud.blips.find((b) => b.mine)
+  const next = hud.nextCheckpoint
+  if (hud.phase !== 'racing' || hud.spectator || mine === undefined || next === null) {
+    wayBack.shown = false
+    wayBack.lastDistance = -1
+    wayBack.growingMs = 0
+    return
+  }
+  const dx = next.x - mine.x
+  const dz = next.z - mine.z
+  const distance = Math.sqrt(dx * dx + dz * dz)
+  // A small dead band, so standing still or sliding along a wall does not count either way.
+  if (wayBack.lastDistance >= 0 && distance > wayBack.lastDistance + 0.01) wayBack.growingMs += dt * 1000
+  else if (distance < wayBack.lastDistance - 0.01) wayBack.growingMs = 0
+  wayBack.lastDistance = distance
+  const bearing = Math.atan2(dx, dz) * (180 / Math.PI)
+  wayBack.shown = wayBack.growingMs >= 1000 || Math.abs(wrapDegrees(bearing - hud.headingDeg)) > 100
+  // Relative to what is on screen: the chase camera, or the car if there is no camera yet.
+  const camera = Transform.getOrNull(engine.CameraEntity)
+  const view = camera !== null ? yawDegrees(camera.rotation) : hud.headingDeg
+  wayBack.index = (((Math.round(wrapDegrees(bearing - view) / 22.5)) % 16) + 16) % 16
+  wayBack.meters = Math.round(distance)
+}
+
+function WayBackArrow() {
+  if (!wayBack.shown) return null
+  return (
+    <UiEntity
+      uiTransform={{
+        positionType: 'absolute',
+        position: { left: 0, top: EDGE + 66 },
+        width: '100%',
+        flexDirection: 'row',
+        justifyContent: 'center'
+      }}
+    >
+      <UiEntity
+        uiTransform={{ flexDirection: 'row', alignItems: 'center', padding: { left: 10, right: 16, top: 4, bottom: 4 } }}
+        uiBackground={BG_TAG}
+      >
+        {/* The same background object for the same index, so the image is only rewritten
+            when the arrow actually turns. */}
+        <UiEntity uiTransform={{ width: 56, height: 56, margin: { right: 8 } }} uiBackground={ARROWS[wayBack.index]} />
+        <Label value={`${wayBack.meters} m`} fontSize={22} color={INK} textAlign="middle-left" textWrap="nowrap" />
+      </UiEntity>
+    </UiEntity>
+  )
+}
+
 /** Countdown, GO, finish and podium lines, in the upper middle of the screen. */
 function BigMessage() {
   if (hud.bigMessage === '') return null
@@ -1694,6 +1767,7 @@ function Hud() {
       <LeaveTag />
       <LobbyCard />
       <BigMessage />
+      <WayBackArrow />
       <Toast />
     </UiEntity>
   )
@@ -1729,5 +1803,6 @@ export function setupUi(): void {
       }
     }
     if (hud.controlsMs > 0) hud.controlsMs = Math.max(0, hud.controlsMs - dt * 1000)
+    updateWayBack(dt)
   })
 }

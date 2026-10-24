@@ -8,7 +8,7 @@ python3 scene/tools/ui/make-ui.py
 ```
 
 Tarda unos 10 s e imprime cada imagen con su tamaño, su peso y, en los marcos 9-slice, la
-fracción que `ui.tsx` pasa en `textureSlices`. El conjunto pesa unos 250 KB (presupuesto: 600 KB).
+fracción que `ui.tsx` pasa en `textureSlices`. El conjunto pesa unos 330 KB (presupuesto: 600 KB).
 
 ## Qué genera
 
@@ -22,6 +22,7 @@ fracción que `ui.tsx` pasa en `textureSlices`. El conjunto pesa unos 250 KB (pr
 | `key-cap.png` | Teclas de la leyenda de controles |
 | `toast-frame.png` | Aviso de evento con puntas; se estira solo a lo ancho |
 | `seg-on.png`, `seg-off.png`, `charge-fill.png`, `dot-*.png` | Barra segmentada de velocidad, relleno de carga, puntos del carrusel |
+| `arrow-00.png` … `arrow-15.png` (64 px) | Flecha de vuelta al checkpoint, una por dieciseisavo de vuelta (la UI no rota imágenes) |
 | `icon-*.png` (32 px) | Iconos con su color ya puesto (gas en la barra de carga, pedal y elevar en los controles táctiles) |
 | `thumb-<circuito>.png` (512 x 128) | Miniatura del carrusel, dibujada a 356 x 100 y comprimida a potencia de dos; la UI la estira de vuelta |
 
