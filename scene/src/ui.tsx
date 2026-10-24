@@ -252,13 +252,15 @@ const BG_SEG_OFF = image('images/ui/seg-off.png')
 const BG_CHARGE = image('images/ui/charge-fill.png')
 const BG_DOT_ON = image('images/ui/dot-on.png')
 const BG_DOT_OFF = image('images/ui/dot-off.png')
+const BG_CIRCLE = image('images/ui/circle.png')
+const BG_CIRCLE_HELD = image('images/ui/circle-held.png')
 const BG_LOGO = image('images/ui/logo.png')
 /** The way-back arrow, one image per sixteenth of a turn (see `wayBack`). */
 const ARROWS: UiBackgroundProps[] = []
 for (let i = 0; i < 16; i++) ARROWS.push(image(`images/ui/arrow-${String(i).padStart(2, '0')}.png`))
 
 const ICON: Record<string, UiBackgroundProps> = {}
-for (const name of ['flag', 'mode', 'robot', 'laps', 'person', 'people', 'play', 'eye', 'gas', 'bolt', 'question', 'left', 'right', 'up', 'pedal']) {
+for (const name of ['flag', 'mode', 'robot', 'laps', 'person', 'people', 'play', 'eye', 'gas', 'bolt', 'question', 'left', 'right', 'up', 'pedal', 'brake']) {
   ICON[name] = image(`images/ui/icon-${name}.png`)
 }
 
@@ -1715,15 +1717,48 @@ function NativeTag(props: { key?: string; box: [number, number, number, number];
 }
 
 /**
+ * The brake: a disc the size of the explorer's E, F and hand buttons, left of the hand
+ * (which is at 505-537 x 322-355 on the grid) and below the ROLL caption, with the pedal
+ * drawn over it.
+ */
+const BRAKE_BOX: [number, number, number, number] = [462, 321, 34, 34]
+
+function BrakeButton() {
+  const b = gridBox(...BRAKE_BOX)
+  const g = gridScale()
+  const set = (on: boolean) => () => {
+    touch.brake = on
+  }
+  return (
+    <UiEntity
+      uiTransform={{
+        positionType: 'absolute',
+        position: { left: b.left, top: b.top },
+        width: b.width,
+        height: b.height,
+        justifyContent: 'center',
+        alignItems: 'center'
+      }}
+      uiBackground={touch.brake ? BG_CIRCLE_HELD : BG_CIRCLE}
+      onMouseDown={set(true)}
+      onMouseUp={set(false)}
+      onMouseLeave={set(false)}
+    >
+      <Icon name="brake" size={18 * g} />
+    </UiEntity>
+  )
+}
+
+/**
  * Driving controls for a touch explorer, while racing.
  *
- * On the left, ours: steer left and right (both together brake, and reverse once stopped)
- * and LIFT for the thrusters above them, clear of the explorer's joystick, which does
- * nothing in a race because the avatar's movement is locked. On the right, the explorer's
- * own buttons do the driving (jump is the throttle, E rolls, F respawns; see `input.ts`)
- * and carry a caption each. BOOST is ours too, above that cluster: the explorer's hand
- * button is IA_POINTER, which every touch on a phone also fires, so it could not be told
- * apart from a thumb on the steering.
+ * On the left, ours: steer left and right, and LIFT for the thrusters above them, clear of
+ * the explorer's joystick, which does nothing in a race because the avatar's movement is
+ * locked. On the right, the explorer's own buttons do the driving (jump is the throttle,
+ * double-tapped for boost; E rolls, F respawns; see `input.ts`) and carry a caption each.
+ * The brake is ours, a round button among theirs and made to look like one: left of the
+ * hand button, level with it. The hand itself is IA_POINTER, which every touch on a phone
+ * also fires, so it is not used.
  *
  * Nothing here exists outside a race, so nothing here can catch a touch meant for the lobby.
  */
@@ -1731,7 +1766,7 @@ function MobileControls() {
   const shown = isMobile() && !hud.spectator && (hud.phase === 'countdown' || hud.phase === 'racing')
   if (!shown) {
     // A button that disappears under a finger never hears it lift.
-    touch.left = touch.right = touch.lift = touch.boost = false
+    touch.left = touch.right = touch.lift = touch.brake = false
     return null
   }
   return (
@@ -1739,7 +1774,7 @@ function MobileControls() {
       <HoldButton box={[12, 116, 136, 42]} icon="up" label="LIFT" held={touch.lift} set={(on) => { touch.lift = on }} />
       <HoldButton box={[12, 166, 64, 80]} icon="left" label="LEFT" held={touch.left} set={(on) => { touch.left = on }} />
       <HoldButton box={[84, 166, 64, 80]} icon="right" label="RIGHT" held={touch.right} set={(on) => { touch.right = on }} />
-      <HoldButton box={[600, 168, 58, 56]} icon="bolt" label="BOOST" held={touch.boost} set={(on) => { touch.boost = on }} />
+      <BrakeButton />
       <NativeTag box={[528, 225, 64, 15]} label="RESPAWN" />
       <NativeTag box={[456, 285, 50, 16]} label="ROLL" />
       <NativeTag box={[548, 358, 80, 16]} icon="pedal" label="THROTTLE" />

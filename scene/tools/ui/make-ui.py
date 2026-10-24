@@ -221,6 +221,18 @@ def segment(size, colour):
     return down(layer(colour, shape_mask(size, fn)), size)
 
 
+def ring_button(size, fill, edge):
+    w, h = size
+
+    def fn(d, s):
+        d.ellipse((1 * s, 1 * s, (w - 1) * s, (h - 1) * s), fill=255)
+    outer = shape_mask(size, fn)
+    img = Image.new('RGBA', outer.size, (0, 0, 0, 0))
+    img = Image.alpha_composite(img, layer(fill, outer))
+    img = Image.alpha_composite(img, layer(edge, ring(outer, 2)))
+    return down(img, size)
+
+
 def dot(size, colour):
     def fn(d, s):
         d.ellipse((1 * s, 1 * s, (size[0] - 1) * s, (size[1] - 1) * s), fill=255)
@@ -347,6 +359,14 @@ def i_up(d, s):
     d.rectangle((4 * s, 19.5 * s, 20 * s, 22 * s), fill=255)
 
 
+def i_brake(d, s):
+    # Brake pedal: wider and squatter than the accelerator, ribbed across.
+    d.rounded_rectangle((3 * s, 5 * s, 21 * s, 17 * s), radius=2 * s, fill=255)
+    for y in (8, 11, 14):
+        d.rectangle((6 * s, (y - 0.7) * s, 18 * s, (y + 0.7) * s), fill=0)
+    d.rectangle((10 * s, 17 * s, 14 * s, 22 * s), fill=255)
+
+
 def i_pedal(d, s):
     # Accelerator pedal: a tall plate, ribbed, on its hinge.
     d.polygon([(7 * s, 2 * s), (18 * s, 2 * s), (19 * s, 18 * s), (6 * s, 18 * s)], fill=255)
@@ -374,6 +394,7 @@ ICONS = {
     'right': (i_right, INK + (255,)),
     'up': (i_up, INK + (255,)),
     'pedal': (i_pedal, INK + (255,)),
+    'brake': (i_brake, INK + (255,)),
 }
 
 
@@ -677,6 +698,10 @@ def main():
     put(segment((32, 16), rgba(ACCENT, 1)), 'seg-on.png')
     put(segment((32, 16), (255, 255, 255, 46)), 'seg-off.png')
     put(hgradient((64, 8), [(0, PINK + (255,)), (1, ACCENT + (255,))]), 'charge-fill.png')
+    # The brake button, made to sit among the explorer's own round buttons: a dark disc
+    # with a light ring, brighter while held.
+    put(ring_button((64, 64), (0, 0, 0, 110), (255, 255, 255, 170)), 'circle.png')
+    put(ring_button((64, 64), rgba(ACCENT, 0.45), (255, 255, 255, 230)), 'circle-held.png')
     put(dot((16, 16), ACCENT + (255,)), 'dot-on.png')
     put(dot((16, 16), (255, 255, 255, 77)), 'dot-off.png')
 

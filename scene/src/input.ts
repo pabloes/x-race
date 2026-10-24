@@ -16,9 +16,10 @@
  *
  * On a phone the explorer's own buttons stand in for some keys: jump is the throttle
  * (thrusters move to an on-screen LIFT button), E rolls and F respawns, the same actions
- * as on a keyboard. Steering, lift and boost are buttons of ours (`touch`). The explorer's
- * hand button is IA_POINTER, which every touch on a phone also fires, our buttons
- * included, so nothing reads it.
+ * as on a keyboard, and double-tapping jump boosts as double-tapping W does. Steering,
+ * lift and the brake are buttons of ours (`touch`). The explorer's hand button is
+ * IA_POINTER, which every touch on a phone also fires, our buttons included, so nothing
+ * reads it.
  *
  * The double tap is detected here rather than on the server: it is a property of how the
  * player pressed the key, and the server only ever needs to know whether boost is on.
@@ -29,18 +30,13 @@ import { TRICK } from '../../shared/constants'
 import { InputBit } from '../../shared/protocol'
 import { isMobile } from './platform'
 
-/**
- * What the on-screen buttons are holding down, for explorers with no keyboard.
- *
- * Both steering buttons at once is the brake (and reverse): a phone has no room for a
- * fourth big button on the left, and pressing both is not otherwise a thing anyone does.
- * BOOST is the throttle as well, because the thumb on it cannot also be on jump.
- */
+/** What the on-screen buttons are holding down, for explorers with no keyboard. */
 export const touch = {
   left: false,
   right: false,
   lift: false,
-  boost: false
+  /** Brake, and reverse once stopped, as S. */
+  brake: false
 }
 
 /** Milliseconds since the scene started, advanced by the caller each frame. */
@@ -58,8 +54,7 @@ export function readInputBits(dt: number): number {
   const mobile = isMobile()
   const throttle =
     inputSystem.isPressed(InputAction.IA_FORWARD) ||
-    (mobile && inputSystem.isPressed(InputAction.IA_JUMP)) ||
-    touch.boost
+    (mobile && inputSystem.isPressed(InputAction.IA_JUMP))
   if (throttle && !wasThrottle) {
     // A double tap is a *tap* and then a press: the one before this has to have been
     // short as well as recent. Timing only the gap meant that any brief lift of the
@@ -77,11 +72,10 @@ export function readInputBits(dt: number): number {
 
   let bits = 0
   if (throttle) bits |= InputBit.Throttle
-  if ((boostArmed && throttle) || touch.boost) bits |= InputBit.Boost
-  const touchBrake = touch.left && touch.right
-  if (inputSystem.isPressed(InputAction.IA_BACKWARD) || touchBrake) bits |= InputBit.Brake
-  if (inputSystem.isPressed(InputAction.IA_LEFT) || (touch.left && !touchBrake)) bits |= InputBit.Left
-  if (inputSystem.isPressed(InputAction.IA_RIGHT) || (touch.right && !touchBrake)) bits |= InputBit.Right
+  if (boostArmed && throttle) bits |= InputBit.Boost
+  if (inputSystem.isPressed(InputAction.IA_BACKWARD) || touch.brake) bits |= InputBit.Brake
+  if (inputSystem.isPressed(InputAction.IA_LEFT) || touch.left) bits |= InputBit.Left
+  if (inputSystem.isPressed(InputAction.IA_RIGHT) || touch.right) bits |= InputBit.Right
   if (inputSystem.isPressed(InputAction.IA_WALK)) bits |= InputBit.Handbrake
   if ((!mobile && inputSystem.isPressed(InputAction.IA_JUMP)) || touch.lift) bits |= InputBit.Thrust
   if (inputSystem.isPressed(InputAction.IA_PRIMARY)) bits |= InputBit.Flip
