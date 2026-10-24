@@ -49,9 +49,10 @@ async function main(): Promise<void> {
     }
     // The admin page. No authentication here on purpose: it belongs in front of this
     // server, where CapRover can put a password on the route without the game knowing.
-    if (req.method === 'GET' && req.url === '/stats') {
+    const [path, search] = (req.url ?? '').split('?')
+    if (req.method === 'GET' && path === '/stats') {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
-      res.end(statsPage(stats, engineName(), rooms.roomCount, rooms.playerCount))
+      res.end(statsPage(stats, engineName(), rooms.roomCount, rooms.playerCount, new URLSearchParams(search ?? '')))
       return
     }
     res.writeHead(404, { 'content-type': 'text/plain' })

@@ -476,6 +476,7 @@ export class Room {
       startedAt: Date.now() - Math.round(nowMs - this.raceStartMs),
       endedAt: Date.now(),
       mode: this.mode,
+      track: this.track.base,
       laps: this.laps,
       participants: racers.map((r) => ({
         name: r.name,
@@ -483,6 +484,7 @@ export class Room {
         rank: r.car.rank,
         laps: r.car.lap,
         bestLapMs: Math.round(r.car.bestLapMs),
+        totalMs: r.car.finished ? Math.round(r.car.finishedAtMs - this.raceStartMs) : 0,
         score: r.car.score,
         finished: r.car.finished,
         bot: r.driver !== null

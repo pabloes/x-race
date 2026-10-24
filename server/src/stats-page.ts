@@ -7,7 +7,8 @@
  * auth, which is where a password belongs rather than in the game server.
  */
 
-import type { Stats } from './stats'
+import { isTrackId, TRACK_IDS, trackById, type TrackId } from '../../shared/tracks'
+import type { Mark, Range, Stats } from './stats'
 
 const STYLE = `
   :root { color-scheme: dark }
@@ -29,7 +30,25 @@ const STYLE = `
   .addr { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; color: #c7d2e4 }
   .muted { color: #6b7a93 } .guest { color: #7f8da8; font-style: italic }
   .win { color: #ffd84d } .empty { color: #7f8da8; padding: 14px 0 }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 10px }
+  .tabs a { color: #c7d2e4; text-decoration: none; padding: 5px 12px; border-radius: 999px;
+            border: 1px solid #1f2836; font-size: 13px; letter-spacing: .06em }
+  .tabs a.on { background: #19d3ff; border-color: #19d3ff; color: #0b0e14; font-weight: 650 }
+  .boards { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 18px }
+  .board { background: #141a26; border: 1px solid #1f2836; border-radius: 10px; padding: 14px 18px }
+  .board h3 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: #19d3ff }
+  .time { font-family: ui-monospace, SFMono-Regular, Menlo, monospace }
 `
+
+const RANGES: { id: Range; label: string }[] = [
+  { id: 'today', label: 'TODAY' },
+  { id: 'week', label: 'WEEK' },
+  { id: 'month', label: 'MONTH' },
+  { id: 'year', label: 'YEAR' },
+  { id: 'all', label: 'ALL TIME' }
+]
+/** Race lengths that always get a board, timed or not; others appear once someone sets one. */
+const RACE_LAPS = [1, 3, 5]
 
 function escape(text: string): string {
   return text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string)
@@ -44,7 +63,62 @@ function lap(ms: number): string {
   return `${(ms / 1000).toFixed(2)}s`
 }
 
-export function statsPage(stats: Stats, engine: string, rooms: number, players: number): string {
+/** 0:24.21: minutes, seconds and hundredths, the way a lap board reads. */
+function clock(ms: number): string {
+  const hundredths = Math.round(ms / 10)
+  const minutes = Math.floor(hundredths / 6000)
+  const seconds = (hundredths % 6000) / 100
+  return `${minutes}:${seconds.toFixed(2).padStart(5, '0')}`
+}
+
+function board(title: string, marks: Mark[]): string {
+  const rows = marks
+    .map(
+      (m, i) => `<tr>
+        <td>${i === 0 ? '<span class="win">1.</span>' : `${i + 1}.`}</td>
+        <td>${escape(m.name)}${m.address ? '' : ' <span class="guest">guest</span>'}</td>
+        <td class="time">${clock(m.ms)}</td>
+        <td class="muted">${when(m.at).slice(0, 10)}</td>
+      </tr>`
+    )
+    .join('')
+  return `<div class="board"><h3>${escape(title)}</h3>${
+    rows
+      ? `<table><tr><th>#</th><th>Driver</th><th>Time</th><th>Date</th></tr>${rows}</table>`
+      : '<p class="empty">No times yet.</p>'
+  }</div>`
+}
+
+/** The record boards for one circuit and range, with the links that pick them. */
+function recordsSection(stats: Stats, query: URLSearchParams): string {
+  const asked = query.get('track')
+  const track: TrackId = asked && isTrackId(asked) ? asked : 'city'
+  const range = RANGES.find((r) => r.id === query.get('range'))?.id ?? 'all'
+  const link = (t: TrackId, r: Range) => `/stats?track=${t}&amp;range=${r}`
+  const tracks = TRACK_IDS.map(
+    (t) => `<a class="${t === track ? 'on' : ''}" href="${link(t, range)}">${escape(trackById(t).name)}</a>`
+  ).join('')
+  const ranges = RANGES.map(
+    (r) => `<a class="${r.id === range ? 'on' : ''}" href="${link(track, r.id)}">${r.label}</a>`
+  ).join('')
+  const laps = new Set(RACE_LAPS)
+  for (const metric of stats.raceMetrics(track)) laps.add(Number(metric.slice(5)))
+  const boards = [
+    board('Best lap', stats.records(track, 'lap', range)),
+    ...[...laps]
+      .sort((a, b) => a - b)
+      .map((n) => board(`Best race · ${n} lap${n === 1 ? '' : 's'}`, stats.records(track, `race-${n}`, range)))
+  ].join('')
+  return `<div class="tabs">${tracks}</div><div class="tabs">${ranges}</div><div class="boards">${boards}</div>`
+}
+
+export function statsPage(
+  stats: Stats,
+  engine: string,
+  rooms: number,
+  players: number,
+  query = new URLSearchParams()
+): string {
   const s = stats.summary()
   const visitors = s.visitors
     .map(
@@ -97,6 +171,9 @@ export function statsPage(stats: Stats, engine: string, rooms: number, players: 
     <div class="card"><div class="n">${s.guestVisits}</div><div class="l">guest joins</div></div>
     <div class="card"><div class="n">${s.races}</div><div class="l">races logged</div></div>
   </div>
+
+  <h2>Records</h2>
+  ${recordsSection(stats, query)}
 
   <h2>Visitors</h2>
   ${

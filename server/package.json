@@ -12,6 +12,7 @@
     "bot": "tsx src/test-client.ts",
     "harness": "tsx src/harness.ts",
     "test:features": "tsx src/feature-tests.ts",
+    "test:stats": "tsx src/stats-check.ts",
     "test:decor": "tsx src/decor-check.ts"
   },
   "dependencies": {

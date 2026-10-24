@@ -322,6 +322,13 @@ Con eso el fichero se escribe tras cada carrera y se lee al arrancar. Sin volume
 
 El registro guarda las últimas 300 carreras; las más viejas se caen por el final.
 
+**Récords.** Encima del registro, una tabla por circuito e intervalo
+(`/stats?track=skyline&range=week`; `range` es `today`, `week`, `month`, `year` o `all`): mejor
+vuelta y mejor carrera por número de vueltas, top 10, un piloto por línea, sin bots. No salen
+del registro de 300 carreras sino de un libro aparte en el mismo `STATS_FILE`: los diez mejores
+de cada día UTC durante un año y los diez mejores de siempre, así que cualquier intervalo se
+calcula exacto al servir la página. `npm run test:stats` lo comprueba con carreras sintéticas.
+
 ## Panel de administracion
 
 `GET /stats` en el servidor devuelve una pagina con los visitantes unicos y el registro de
