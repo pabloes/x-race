@@ -478,7 +478,7 @@ function Heading(props: { icon: string; title: string; size?: number; children?:
 
 /** The logo, in the box `logoBox` finds for it. */
 function Logo() {
-  if (hud.phase !== 'lobby' && !hud.spectator) return null
+  if (isMobile() || (hud.phase !== 'lobby' && !hud.spectator)) return null
   const box = logoBox()
   if (box === null) return null
   return (
@@ -709,6 +709,8 @@ function LobbyCard() {
   if (hud.spectator && !hud.wasSpectator) hud.menuMinimised = true
   hud.wasSpectator = hud.spectator
 
+  if (isMobile()) return <MobileLobby />
+
   const visibleLeft = insetLeft()
   // Under the logo and the explorer's top margin; in preview on a narrow window the card
   // also runs under LOCAL TOOLS.
@@ -853,6 +855,86 @@ function LobbyCard() {
           )}
         </UiEntity>
       ) : null}
+    </UiEntity>
+  )
+}
+
+/** Mobile rows use the free middle of the screen so every choice remains a finger-sized target. */
+function MobileLobby() {
+  const g = gridScale()
+  const text = (value: string, size = 14) => <Label value={value} fontSize={size * g} color={INK} textAlign="middle-center" textWrap="nowrap" />
+  const button = (label: string, width: number, onClick: () => void, selected = false, enabled = true) => (
+    <UiEntity key={label} uiTransform={{ width: width * g, height: 44 * g, justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}
+      uiBackground={{ color: selected ? rgb(0x13748d) : WELL }} onMouseDown={enabled ? onClick : undefined}>
+      {text(label, 16)}
+    </UiEntity>
+  )
+  const box = (x: number, y: number, w: number, h: number) => {
+    const b = gridBox(x, y, w, h)
+    return { positionType: 'absolute' as const, position: { left: b.left, top: b.top }, width: b.width, height: b.height }
+  }
+  if (hud.menuMinimised) return (
+    <UiEntity uiTransform={box(140, 4, 136, 44)} uiBackground={{ color: WELL }} onMouseDown={() => { hud.menuMinimised = false }}>
+      {text('MENU', 20)}
+    </UiEntity>
+  )
+  const shown = hud.myVote ?? hud.track
+  const index = TRACK_IDS.indexOf(shown)
+  const track = trackById(shown)
+  const face = TRACK_CARDS[shown]
+  return (
+    <UiEntity uiTransform={{ positionType: 'absolute', width: '100%', height: '100%' }}>
+      <UiEntity uiTransform={{ ...box(140, 32, 515, 48), flexDirection: 'row', alignItems: 'center' }} uiBackground={{ color: WELL }}>
+        {button('<', 44, () => menu.vote(TRACK_IDS[(index + TRACK_IDS.length - 1) % TRACK_IDS.length]))}
+        <UiEntity uiTransform={{ flexGrow: 1, height: '100%', justifyContent: 'center', flexDirection: 'column' }}
+          uiBackground={face !== undefined ? image(face.thumb) : { color: WELL }} onMouseDown={() => menu.vote(shown)}>
+          {text(track.name, 24)}
+          {text(`${(track.lapLength / 1000).toFixed(1)} km · ${hud.myVote === shown ? 'YOUR VOTE' : 'TAP TO VOTE'} · ${hud.votes[shown] ?? 0} votes`)}
+        </UiEntity>
+        {button('>', 44, () => menu.vote(TRACK_IDS[(index + 1) % TRACK_IDS.length]))}
+      </UiEntity>
+      <UiEntity uiTransform={{ ...box(12, 88, 643, 60), flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }} uiBackground={{ color: WELL }}>
+        {text('GAME MODE', 20)}
+        {button('SOLO', 184, () => menu.setMode('solo'), hud.mode === 'solo')}
+        {button('MULTI', 184, () => menu.setMode('multiplayer'), hud.mode === 'multiplayer')}
+      </UiEntity>
+      <UiEntity uiTransform={{ ...box(12, 156, 643, 60), flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }} uiBackground={{ color: WELL }}>
+        {text('BOTS', 20)}
+        {button('−', 44, () => menu.setBots(hud.bots - 1))}
+        {text(String(hud.bots), 20)}
+        {button('+', 44, () => menu.setBots(hud.bots + 1))}
+        {text('LAPS', 20)}
+        {[1, 3, 5].map(laps => button(String(laps), 64, () => menu.setLaps(laps), hud.laps === laps))}
+      </UiEntity>
+      <UiEntity uiTransform={{ ...box(152, 224, 346, 140), flexDirection: 'column', justifyContent: 'space-between' }}>
+        {text(`${hud.pilots} DRIVERS · ${hud.ready} READY`)}
+        {button(hud.spectator ? 'DRIVE' : hud.joining ? `DOORS OPEN · ${Math.max(0, Math.ceil(hud.phaseMs / 1000))}` : 'START RACE', 346,
+          () => { if (hud.spectator) { menu.setSpectator(false); hud.menuMinimised = false } else menu.start() }, true,
+          hud.spectator || (hud.phase === 'lobby' && !hud.joining))}
+        {button(hud.spectator ? 'HIDE MENU' : 'SPECTATE', 346, () => { if (!hud.spectator) menu.setSpectator(true); hud.menuMinimised = true })}
+      </UiEntity>
+    </UiEntity>
+  )
+}
+
+/** The mobile race card trades the map for legible figures and three nearby drivers. */
+function MobileRaceCard() {
+  const g = gridScale()
+  const b = gridBox(292, 54, 363, 170)
+  return (
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { left: b.left, top: b.top }, width: b.width, height: b.height, padding: 8 * g, flexDirection: 'column' }} uiBackground={{ color: WELL }}>
+      <UiEntity uiTransform={{ width: '100%', height: 50 * g, flexDirection: 'row', justifyContent: 'space-between' }}>
+        {[
+          ['LAP', `${Math.min(hud.lap + 1, hud.laps)}/${hud.laps}`],
+          ['POS', `${hud.rank}/${Math.max(1, hud.drivers)}`],
+          ['CP', `${hud.checkpoint}/${hud.checkpoints}`],
+          ['TIME', formatTime(hud.raceTimeMs)]
+        ].map(([label, value]) => <UiEntity key={label} uiTransform={{ flexDirection: 'column' }}>
+          <Label value={label} fontSize={14 * g} color={CAPTION} />
+          <Label value={value} fontSize={18 * g} color={INK} />
+        </UiEntity>)}
+      </UiEntity>
+      {hud.phase === 'finished' ? <UiEntity uiTransform={{ width: '100%', flexGrow: 1, overflow: 'scroll', flexDirection: 'column' }}><Results /></UiEntity> : <Standings />}
     </UiEntity>
   )
 }
@@ -1021,7 +1103,7 @@ function RaceCard() {
 /** One row of the standings; yours is the orange one. */
 function StandingRow(props: { key?: string; s: Standing; mine: boolean; big: boolean }) {
   const s = props.s
-  const size = props.big ? 19 : 13
+  const size = isMobile() ? 14 * gridScale() : props.big ? 19 : 13
   // No time gaps on the wire yet, so the race list says what it can: you, a finishing
   // time, or the lap the others are on.
   const right = props.mine && !props.big ? 'YOU' : s.finished ? formatTime(s.totalMs) : `L${s.lap + 1}`
@@ -1047,7 +1129,7 @@ function StandingRow(props: { key?: string; s: Standing; mine: boolean; big: boo
         fontSize={size}
         color={props.mine ? YOU : CAPTION}
         textAlign="middle-left"
-        uiTransform={{ width: props.big ? 30 : 20 }}
+        uiTransform={{ width: isMobile() ? 24 * gridScale() : props.big ? 30 : 20 }}
       />
       <Label
         value={short(s.name, props.big ? 20 : 16)}
@@ -1066,7 +1148,7 @@ function StandingRow(props: { key?: string; s: Standing; mine: boolean; big: boo
         color={props.mine ? INK : MUTED}
         textAlign="middle-right"
         textWrap="nowrap"
-        uiTransform={{ width: props.big ? 110 : 64 }}
+        uiTransform={{ width: isMobile() ? 80 * gridScale() : props.big ? 110 : 64 }}
       />
     </UiEntity>
   )
@@ -1142,7 +1224,7 @@ function Standings() {
   return (
     <UiEntity
       uiTransform={{
-        width: RACE_CARD_WIDTH + 4,
+        width: isMobile() ? '100%' : RACE_CARD_WIDTH + 4,
         flexDirection: 'column',
         padding: { left: 6, right: 8, top: 6, bottom: 6 },
         margin: { right: FRAME_GLOW - 2, top: 2 }
@@ -1157,6 +1239,7 @@ function Standings() {
 }
 
 function RightColumn() {
+  if (isMobile()) return hud.phase === 'lobby' ? null : <MobileRaceCard />
   // A narrow lobby is the setup card's, all of it; the room figures can wait.
   if (screen.narrow && hud.phase === 'lobby' && !hud.menuMinimised) return null
   return (
@@ -1185,15 +1268,15 @@ function LeaveTag() {
       uiTransform={{
         positionType: 'absolute',
         // Inside the free area, beside the explorer's scene panel rather than under it.
-        position: { left: insetLeft() - 2, top: insetTop() },
-        height: 40,
+        position: isMobile() ? { left: 140 * gridScale(), top: 4 * gridScale() } : { left: insetLeft() - 2, top: insetTop() },
+        height: isMobile() ? 44 * gridScale() : 40,
         justifyContent: 'center',
         padding: { left: 16, right: 20 }
       }}
       uiBackground={BG_TAG}
       onMouseDown={() => menu.leaveRace()}
     >
-      <Label value="LEAVE RACE" fontSize={14} color={INK} textAlign="middle-center" textWrap="nowrap" />
+      <Label value="LEAVE RACE" fontSize={isMobile() ? 14 * gridScale() : 14} color={INK} textAlign="middle-center" textWrap="nowrap" />
     </UiEntity>
   )
 }
@@ -1361,8 +1444,8 @@ function BoostLamp() {
   return (
     <UiEntity
       uiTransform={{
-        width: 104 + 2 * FRAME_GLOW,
-        height: 81 + 2 * FRAME_GLOW,
+        width: isMobile() ? 64 * gridScale() : 104 + 2 * FRAME_GLOW,
+        height: isMobile() ? 44 * gridScale() : 81 + 2 * FRAME_GLOW,
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
@@ -1398,7 +1481,7 @@ function Speedometer() {
     : inverted
       ? 'INVERTED · gravity flipped'
       : airborne
-        ? 'SPACE thrusters · E barrel roll'
+        ? isMobile() ? 'AIRBORNE' : 'SPACE thrusters · E barrel roll'
         : ''
   const segments: ReactEcs.JSX.Element[] = []
   for (let i = 0; i < SPEED_SEGMENTS; i++) {
@@ -1415,23 +1498,22 @@ function Speedometer() {
   // between the joystick and the explorer's button cluster.
   const g = gridScale()
   const position = isMobile()
-    ? { left: 0, bottom: 8 - FRAME_GLOW }
+    ? { left: 152 * g, bottom: 8 * g }
     : { left: insetLeft() - FRAME_GLOW, bottom: Math.max(12, screen.area.bottom + 12) - FRAME_GLOW }
   return (
     <UiEntity
       uiTransform={{
         positionType: 'absolute',
         position,
-        width: isMobile() ? '100%' : 'auto',
+        width: isMobile() ? 264 * g : 'auto',
         flexDirection: 'row',
         justifyContent: 'center',
-        alignItems: 'flex-end',
-        padding: isMobile() ? { left: 152 * g, right: (GRID_W - 498) * g } : undefined
+        alignItems: 'flex-end'
       }}
     >
       <UiEntity
         uiTransform={{
-          width: SPEED_WIDTH + 2 * FRAME_GLOW,
+          width: isMobile() ? 264 * g : SPEED_WIDTH + 2 * FRAME_GLOW,
           flexDirection: 'column',
           padding: { left: FRAME_GLOW + 22, right: FRAME_GLOW + 22, top: FRAME_GLOW + 12, bottom: FRAME_GLOW + 16 }
         }}
@@ -1440,19 +1522,20 @@ function Speedometer() {
         <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'flex-end', margin: { bottom: 8 } }}>
           <Label
             value={String(Math.round(hud.speedKmh))}
-            fontSize={68}
+            fontSize={isMobile() ? 32 * g : 68}
             color={INK}
             textAlign="bottom-left"
             textWrap="nowrap"
           />
           <Label
             value="km/h"
-            fontSize={18}
+            fontSize={isMobile() ? 14 * g : 18}
             color={MUTED}
             textAlign="bottom-left"
             textWrap="nowrap"
             uiTransform={{ margin: { left: 10, bottom: 10 } }}
           />
+          {isMobile() ? <BoostLamp /> : null}
         </UiEntity>
         <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', margin: { bottom: 12 } }}>{segments}</UiEntity>
         <UiEntity uiTransform={{ width: '100%', height: 20, flexDirection: 'row', alignItems: 'center' }}>
@@ -1465,11 +1548,11 @@ function Speedometer() {
           </UiEntity>
           <Label
             value={`CHARGE ${Math.round(charge * 100)}%`}
-            fontSize={12}
+            fontSize={isMobile() ? 14 * g : 12}
             color={MUTED}
             textAlign="middle-right"
             textWrap="nowrap"
-            uiTransform={{ width: 100 }}
+            uiTransform={{ width: isMobile() ? 112 * g : 100 }}
           />
         </UiEntity>
         {note !== '' ? (
@@ -1483,7 +1566,7 @@ function Speedometer() {
           />
         ) : null}
       </UiEntity>
-      <BoostLamp />
+      {isMobile() ? null : <BoostLamp />}
     </UiEntity>
   )
 }
@@ -1503,6 +1586,7 @@ function Speedometer() {
  * Nothing here is drawn for a touch explorer; `MobileControls` owns that screen.
  */
 function ControlsLegend() {
+  if (isMobile()) return null
   const cap = (key: string, id: string) => (
     <UiEntity
       key={id}
@@ -1557,6 +1641,15 @@ function ConnectionPill() {
     : hud.connected
       ? `ONLINE · ${Math.round(hud.pingMs)} MS · ${Math.round(hud.fps)} FPS${hud.extrapolationMs > 60 ? ` · EXT ${Math.round(hud.extrapolationMs)} MS` : ''}`
       : hud.statusText.toUpperCase()
+  // A single bounded line keeps mobile diagnostics out of the carousel and native corners.
+  if (isMobile()) {
+    const g = gridScale()
+    return (
+      <UiEntity uiTransform={{ width: 363 * g, height: 24 * g, justifyContent: 'center', alignItems: 'center' }} uiBackground={{ color: PILL }}>
+        <Label value={short(text, 44)} fontSize={14 * g} color={bad || slow ? PINK : CAPTION} textAlign="middle-center" textWrap="nowrap" />
+      </UiEntity>
+    )
+  }
   return (
     <UiEntity uiTransform={{ flexDirection: 'column', alignItems: 'flex-end' }}>
       {hud.spike !== '' ? (
@@ -1588,6 +1681,7 @@ const CONTROLS_PEEK_MS = 5000
 
 function BottomRight() {
   const mobile = isMobile()
+  if (mobile) return <UiEntity uiTransform={{ positionType: 'absolute', position: { right: 12 * gridScale(), top: 4 * gridScale() } }}><ConnectionPill /></UiEntity>
   const folded = hud.phase === 'racing' || hud.phase === 'finished'
   // A narrow lobby has the setup card across the screen, legend or not.
   const crowded = screen.narrow && hud.phase === 'lobby' && !hud.menuMinimised
@@ -1685,7 +1779,7 @@ function HoldButton(props: {
       onMouseLeave={() => props.set(false)}
     >
       <Icon name={props.icon} size={20 * g} />
-      <Label value={props.label} fontSize={9 * g} color={INK} textAlign="middle-center" textWrap="nowrap" />
+      <Label value={props.label} fontSize={14 * g} color={INK} textAlign="middle-center" textWrap="nowrap" />
     </UiEntity>
   )
 }
@@ -1711,7 +1805,7 @@ function NativeTag(props: { key?: string; box: [number, number, number, number];
       uiBackground={{ color: rgb(0x061224, 0.8) }}
     >
       {props.icon !== undefined ? <Icon name={props.icon} size={11 * g} margin={3 * g} /> : null}
-      <Label value={props.label} fontSize={8 * g} color={INK} textAlign="middle-center" textWrap="nowrap" />
+      <Label value={props.label} fontSize={10 * g} color={INK} textAlign="middle-center" textWrap="nowrap" />
     </UiEntity>
   )
 }
@@ -1771,12 +1865,12 @@ function MobileControls() {
   }
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { left: 0, top: 0 }, width: '100%', height: '100%' }}>
-      <HoldButton box={[12, 116, 136, 42]} icon="up" label="LIFT" held={touch.lift} set={(on) => { touch.lift = on }} />
-      <HoldButton box={[12, 166, 64, 80]} icon="left" label="LEFT" held={touch.left} set={(on) => { touch.left = on }} />
-      <HoldButton box={[84, 166, 64, 80]} icon="right" label="RIGHT" held={touch.right} set={(on) => { touch.right = on }} />
+      <HoldButton box={[12, 82, 264, 54.6]} icon="up" label="LIFT" held={touch.lift} set={(on) => { touch.lift = on }} />
+      <HoldButton box={[12, 144, 128, 104]} icon="left" label="LEFT" held={touch.left} set={(on) => { touch.left = on }} />
+      <HoldButton box={[148, 144, 128, 104]} icon="right" label="RIGHT" held={touch.right} set={(on) => { touch.right = on }} />
       <BrakeButton />
-      <NativeTag box={[528, 225, 64, 15]} label="RESPAWN" />
-      <NativeTag box={[456, 285, 50, 16]} label="ROLL" />
+      <NativeTag box={[424, 240, 70, 18]} label="RESPAWN" />
+      <NativeTag box={[440, 285, 54, 18]} label="ROLL" />
       <NativeTag box={[548, 358, 80, 16]} icon="pedal" label="THROTTLE" />
     </UiEntity>
   )
