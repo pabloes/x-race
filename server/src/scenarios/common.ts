@@ -47,6 +47,11 @@ export type Scenario = {
   boostInAir?: boolean
   /** Scenario passes if its first landing is this much further on than another scenario's. */
   requireFartherThan?: { scenario: string; metres: number }
+  /**
+   * The car is meant to run into a barrier: it passes if it touched one, never went past
+   * 60 degrees of roll or pitch, and kept at least `keep` of its speed for 1.5 s after.
+   */
+  requireScrape?: { keep: number }
 }
 
 export const THROTTLE = InputBit.Throttle
@@ -93,4 +98,48 @@ export function checkpointAfter(track: Track, index: number): number {
     gap: (nearestIndex(track, cp.pos) - index + length) % length
   }))
   return marks.reduce((a, b) => (b.gap < a.gap ? b : a)).index
+}
+
+/**
+ * A start `across` metres to the right of the line at `index` (negative: left), turned
+ * `degrees` to the right of the line's heading.
+ */
+export function beside(track: Track, index: number, across: number, degrees: number): { pos: Vec3; yaw: number } {
+  const p = track.centreline[index]
+  const x = p.pos.x + p.dir.z * across
+  const z = p.pos.z - p.dir.x * across
+  return { pos: { x, y: spawnHeightAt(track, x, z), z }, yaw: (Math.atan2(p.dir.x, p.dir.z) * 180) / Math.PI + degrees }
+}
+
+/**
+ * The barriers are solid: grazing one, in a corner at 25 m/s and on a straight at 35, must
+ * not roll the car or stop it. Both are laid on the generated circuit: the first corner of
+ * the lap, its outside edge, and the middle of the main straight, its right-hand edge.
+ */
+export function barrierScenarios(track: Track): Scenario[] {
+  const line = track.centreline
+  // The first corner: the lap starts with its arc. Which way it turns says which side the
+  // outside is; a car started near that edge and driven straight drifts into it at ~10 deg.
+  const a = line[1].dir
+  const b = line[3].dir
+  const outside = a.x * b.z - a.z * b.x > 0 ? 1 : -1
+  const grid = nearestIndex(track, track.spawns[0].pos)
+  return [
+    {
+      name: 'barrier corner @ 25 m/s',
+      start: beside(track, 1, outside * 7, 0),
+      speed: 25,
+      seconds: 4,
+      bits: THROTTLE,
+      requireScrape: { keep: 0.6 }
+    },
+    {
+      name: 'barrier straight @ 35 m/s',
+      start: beside(track, grid, 4, 8),
+      speed: 35,
+      seconds: 4,
+      bits: BOOST,
+      requireScrape: { keep: 0.6 }
+    }
+  ]
 }

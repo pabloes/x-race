@@ -32,6 +32,28 @@ const THRUST_LOOKAHEAD = 25
  */
 const STRANDED_BELOW = 6
 const STRANDED_MS = 1500
+/**
+ * Nose against a barrier: on the throttle, on the ground and going nowhere for this long,
+ * the bot backs off for `REVERSE_MS` steering for its target, as a driver would, and then
+ * tries again. Without it the bot pushed until the car's own stuck timer respawned it, at the
+ * checkpoint behind, from where it drove into the same barrier again: 79 times in a race.
+ */
+const WEDGED_MS = 600
+const REVERSE_MS = 1000
+/**
+ * Off the road (a jump landed wide): aim this many waypoints further on per metre off the
+ * line, and go no faster than `OFF_ROAD_SPEED`, so the bot comes back at a shallow angle. Aiming
+ * at the next waypoint from 12 m out is a 30 degree turn at 20 m/s, and it went straight
+ * across the road and out behind the barrier on the far side.
+ */
+const OFF_LINE = 6
+const OFF_ROAD_SPEED = 14
+/**
+ * Further out than this for this long: shut out behind a barrier, so respawn. A car on the
+ * road cannot be: the barrier's face is 10.3 m off the line at most, and the car 1.9 m wide.
+ */
+const BEYOND_BARRIERS = 11
+const BEYOND_MS = 4000
 
 /**
  * Radius of the racing line at every point, measured in the XZ plane only: the circle
@@ -82,6 +104,9 @@ export class BotDriver {
   private hints: PathPoint['hint'][] = []
   private radii: number[] = []
   private strandedMs = 0
+  private wedgedMs = 0
+  private reverseMs = 0
+  private beyondMs = 0
 
   constructor(
     private readonly skill: BotSkill,
@@ -97,6 +122,9 @@ export class BotDriver {
     this.radii = radiiOf(this.path, this.hints)
     this.waypoint = 0
     this.strandedMs = 0
+    this.wedgedMs = 0
+    this.reverseMs = 0
+    this.beyondMs = 0
   }
 
   /** Called once per tick before the car is simulated. */
@@ -139,7 +167,9 @@ export class BotDriver {
     // chassis frame, and dividing by a near-zero local Z turns that into a phantom
     // hairpin the bot would brake for.
     const lateral = (p: Vec3) => Math.atan2(p.x, Math.max(Math.hypot(p.y, p.z), 0.5))
-    const error = lateral(toLocal(this.waypoint))
+    const offLine = this.offLine(pos)
+    const aimAhead = offLine > OFF_LINE ? Math.min(8, Math.round(offLine / 3)) : 0
+    const error = lateral(toLocal(this.waypoint + aimAhead))
     const speed = v.forwardSpeed()
 
     // Corner speed, properly: for every point in the next 150 m, the speed its radius
@@ -154,7 +184,7 @@ export class BotDriver {
       const reachable = Math.sqrt(corner * corner + 2 * BRAKING * i * spacing)
       limit = Math.min(limit, reachable)
     }
-    const targetSpeed = clamp(limit, 9, CAR.maxSpeed)
+    const targetSpeed = offLine > OFF_LINE + 2 ? Math.min(limit, OFF_ROAD_SPEED) : clamp(limit, 9, CAR.maxSpeed)
     // Only lift for a corner that is actually close, so the boost is not wasted mid-braking.
     const curvature = Math.abs(lateral(toLocal(this.waypoint + 4)))
     const grounded = v.wheel(0).contact || v.wheel(1).contact || v.wheel(2).contact || v.wheel(3).contact
@@ -188,6 +218,19 @@ export class BotDriver {
       if (car.charge > CHARGE.boostFloor) bits |= InputBit.Boost
     } else if (!gapAhead && car.charge > 0.4 && grounded && curvature < 0.18) bits |= InputBit.Boost
 
+    if (this.reverseMs > 0) {
+      // The car's yaw follows the keys whichever way it rolls, so the same steering that
+      // points it at the target going forward does so going backward too.
+      this.reverseMs -= TICK_MS
+      return InputBit.Brake | (bits & (InputBit.Left | InputBit.Right))
+    }
+    if (grounded && Math.abs(speed) < 1.5 && (bits & InputBit.Throttle) !== 0) this.wedgedMs += TICK_MS
+    else this.wedgedMs = 0
+    if (this.wedgedMs > WEDGED_MS) {
+      this.wedgedMs = 0
+      this.reverseMs = REVERSE_MS
+    }
+
     // In the air the keys are attitude controls: throttle is nose down, steering is yaw, and
     // either one switches off the self-righting. A bot holding the throttle over a gap
     // front-flipped onto its roof on the landing every time, so off the ground it lets go of
@@ -200,11 +243,27 @@ export class BotDriver {
       this.strandedMs = 0
       car.requestRespawn()
     }
+    this.beyondMs = offLine > BEYOND_BARRIERS ? this.beyondMs + TICK_MS : 0
+    if (this.beyondMs > BEYOND_MS) {
+      this.beyondMs = 0
+      car.requestRespawn()
+    }
     // Bots do not barrel roll. They have no way to judge how much flight is left, so they
     // roll on the way down as happily as on the way up, land on the roof and spend the rest
     // of the race respawning. Tricks are the player's business; the bots' job is to put a
     // car in your mirrors. The scripted flip in the invert zone still happens to them.
     return bits
+  }
+
+  /** Distance in the XZ plane from `pos` to the line between the last waypoint and the next. */
+  private offLine(pos: Vec3): number {
+    const n = this.path.length
+    const a = this.path[(this.waypoint - 1 + n) % n]
+    const b = this.path[this.waypoint % n]
+    const dx = b.x - a.x
+    const dz = b.z - a.z
+    const t = clamp(((pos.x - a.x) * dx + (pos.z - a.z) * dz) / (dx * dx + dz * dz || 1), 0, 1)
+    return Math.hypot(a.x + dx * t - pos.x, a.z + dz * t - pos.z)
   }
 
   reset(): void {

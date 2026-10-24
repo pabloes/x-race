@@ -64,7 +64,7 @@ def main():
         draw.polygon(points, fill=colour)
 
     for s in track['surfaces']:
-        if s['kind'] in ('ground', 'wall'):
+        if s['kind'] in ('ground', 'wall', 'barrier'):
             continue
         colour = {
             'road': ROAD,

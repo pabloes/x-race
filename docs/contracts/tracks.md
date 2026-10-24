@@ -83,6 +83,24 @@ export type PathPoint = { pos: Vec3; dir: Vec3; hint?: 'boost' | 'thrust' | 'bra
 - Bajo cualquier calzada a más de 3 m (y 14 m a cada lado), bajo cada hueco y bajo el
   sacacorchos no hay suelo de parcela: quien cae, cae fuera del mundo y reaparece. El suelo
   sigue siendo `kind: 'ground'`, ahora en varias cajas; sin huecos, la caja única de siempre.
+- Barreras (`kind: 'barrier'`): a los dos lados de toda la calzada a ras de suelo, con la
+  cara que toca el coche a 0,8 m del borde del asfalto (8,3 m de la línea en recta, 10,3 m en
+  curva, con una transición de 20 m al salir y entrar en las curvas). La cara de cada caja va
+  exactamente de un punto del borde al siguiente y la caja queda detrás, así que ninguna junta
+  asoma hacia la pista. Cada caja es tan larga como el borde se mantenga recto con 25 cm de
+  tolerancia: una por recta, unas pocas por curva (CITY 211, SKYLINE 93). Altura 1 m, fondo
+  0,4 m, fricción 0.
+  - Sin barreras: calzada a más de 0,5 m (azoteas y subidas), del salto o la rampa grande al
+    final de su zona de aterrizaje, de la bajada de un techo o túnel a 30 m pasada, y el
+    sacacorchos. Donde vuelven a empezar, abren 5 m y se cierran en 30 m (un embudo), para que
+    un coche que aterrizó fuera vuelva a la pista en vez de quedar encerrado detrás.
+  - Servidor (`physics/rapier.ts`): un colisionador por caja, en su propio grupo de colisión
+    que los rayos de las ruedas ignoran (si no, la rueda se apoya en la barrera y el coche se
+    sube a dos ruedas) y con fricción combinada al mínimo (el coche resbala por ella). Cada
+    colisionador estático cuesta ~1 µs por paso de mundo, haya coches o no: con 4 coches el
+    tick pasa de 0,05 a 0,08 ms por coche en CITY (0,065 en SKYLINE).
+  - Cliente: `track-render.ts` no las dibuja ni les pone colisionador (el avatar las cruza);
+    las dibuja la decoración con la pieza del kit.
 - Controles: si el circuito tiene piezas nuevas, los 12 se reparten por la calzada que queda
   fuera de ellas (ni en el sacacorchos ni sobre un hueco, donde la reaparición 10 m atrás
   quedaría en el aire), más uno a mitad de cada tramo invertido. Los pórticos se apoyan en la
@@ -104,6 +122,9 @@ export type PathPoint = { pos: Vec3; dir: Vec3; hint?: 'boost' | 'thrust' | 'bra
     sacacorchos en el suelo es una horquilla falsa).
   - En el aire el bot suelta todo menos los propulsores, y si pasa 1,5 s más de 6 m por debajo
     de su punto de mira (bajo una azotea, bajo una losa) pide reaparecer.
+  - Contra una barrera (acelerando y parado 0,6 s) da marcha atrás 1 s girando hacia su
+    objetivo. Fuera de la pista apunta más adelante y va a 14 m/s como mucho, para volver en
+    ángulo suave; si pasa 4 s a más de 11 m de la línea (detrás de una barrera) pide reaparecer.
 - `npm run typecheck` en verde.
 
 ## Cliente

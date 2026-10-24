@@ -219,6 +219,62 @@ const CORK_BEFORE = 40
  */
 const CORK_RETURN = 93
 
+// --- Barriers ---------------------------------------------------------------
+//
+// The README's "curvas planas y sin quitamiedos" was about barriers made of one box per arc
+// chord: every joint left an end face for the chassis to catch on. These follow the edge
+// itself, and what is laid out is the face a car touches: each box's road-side face runs
+// exactly from one point of the edge to the next and the box stands behind it, so no end
+// sticks out towards the road. Overlapping the pieces instead (0.3 m, the first version) left
+// each end 1 to 2 cm behind its neighbour's face, and a car leaning on the barrier in a corner
+// sinks that far into it: at 28 m/s it found the end and stopped dead.
+//
+// Each box is as long as the edge stays straight: a straight is one box (two coplanar boxes
+// end to end are not a flat wall to the physics, the chassis catches the seam), a corner one
+// every few metres. Few boxes matters: every static collider costs the world step about a
+// microsecond, cars or no cars, and at one per 4 m of edge CITY's 466 tripled the tick.
+// (Measured: not the wheel rays, nor CCD, nor collision groups; one triangle mesh for all of
+// them was dearer still, since every car is always inside its bounds.)
+
+/** A barrier is 1 m tall and 0.4 m deep, the kit's piece; its length is the run's. */
+const BARRIER_HEIGHT = 1
+const BARRIER_DEPTH = 0.4
+/**
+ * How far a box's face may stray from the curve it follows. At 12 cm CITY needed 262 boxes
+ * and a tick cost 0.10 ms a car; at 25 cm it is 208 and 0.084 (4 cars, against 0.05 with no
+ * barriers). The corners' joints turn 10 to 15 degrees, which a car sliding along takes.
+ */
+const BARRIER_SAG = 0.25
+/** From the asphalt's edge to the barrier's road-side face. */
+const BARRIER_OFF_EDGE = 0.8
+/**
+ * Corners are 4 m wider than straights, so the barrier steps in 2 m where a corner ends.
+ * A step is an end face across the path of a car sliding out of the corner along it, so the
+ * barrier tapers in over this length of straight instead: a 6 degree deflection.
+ */
+const BARRIER_TAPER = 20
+/** Road higher than this has no barriers, nor scenery on its edges (see decor-layout.ts). */
+const BARE_ABOVE = 0.5
+/**
+ * Where a barrier starts again after a bare stretch it starts this much further out and
+ * closes in over `FUNNEL_LENGTH`, a 9.5 degree funnel: a car that came off a jump wide has to
+ * be led back to the road, not shut out behind a barrier that begins at its edge (a bot
+ * landed 12 m out after the big ramp and drove the rest of the race behind one).
+ */
+const FUNNEL_WIDTH = 5
+const FUNNEL_LENGTH = 30
+const STRAIGHT_EDGE = ROAD_W / 2 + BARRIER_OFF_EDGE
+const CORNER_EDGE = CORNER_W / 2 + BARRIER_OFF_EDGE
+
+/**
+ * Barrier offset `m` metres into a straight of `length`, tapering out to the corner's at
+ * whichever ends meet a corner (or anything else as wide).
+ */
+function edgeAt(m: number, length: number, wideStart = true, wideEnd = true): number {
+  const fromWide = Math.min(wideStart ? m : Infinity, wideEnd ? length - m : Infinity)
+  return STRAIGHT_EDGE + (CORNER_EDGE - STRAIGHT_EDGE) * Math.max(0, 1 - fromWide / BARRIER_TAPER)
+}
+
 /**
  * Metres of straight each feature needs, margins included: a feature only goes on a
  * straight longer than this. The start needs room for the grid behind the line. A gap's
@@ -420,6 +476,10 @@ type Sample = {
   cpHere?: boolean
   /** Height of the level road there, under whatever the set piece lifts the line onto. */
   floor?: number
+  /** Distance from the line to the barriers either side, see `edgeAt`. */
+  edge?: number
+  /** No barriers here: raised road, a jump's flight or an inverted run's exit, or the corkscrew. */
+  bare?: boolean
 }
 type SampleFlags = Omit<Sample, 'pos' | 'dir' | 'distance'>
 
@@ -550,7 +610,7 @@ export function buildTrack(def: TrackDefinition): Track {
         { x: point.x, y: ROAD_Y + RIDE_HEIGHT + h, z: point.z },
         arcTangent(a, (s + 1) / steps),
         distance,
-        h ? { floor: h } : undefined
+        { edge: CORNER_EDGE, ...(h ? { floor: h } : {}), ...(h > BARE_ABOVE ? { bare: true } : {}) }
       )
     }
 
@@ -607,14 +667,17 @@ export function buildTrack(def: TrackDefinition): Track {
   const main = byLength[0]
   const spawns = buildGrid(main.from, main.to, shape[main.index].y)
 
-  // 6. Grandstands, paddock and city blocks, grown on a grid over everything the circuit
+  // 6. Barriers along both edges, wherever the road is on the ground.
+  surfaces.push(...buildBarriers(path))
+
+  // 7. Grandstands, paddock and city blocks, grown on a grid over everything the circuit
   //    does not use. They are what stops a car driving across the infield from one
   //    checkpoint to the next, and they give the cockpit a horizon. Generated rather than
   //    hand-placed: a hand-placed list silently ends up on the racing line the first time
   //    a corner moves.
   surfaces.push(...scatterBuildings(path))
 
-  // 7. The parcel floor, first in the list as it always was, with the holes cut.
+  // 8. The parcel floor, first in the list as it always was, with the holes cut.
   surfaces.unshift(...buildGround(voids))
 
   const track: Track = {
@@ -643,6 +706,96 @@ export function buildTrack(def: TrackDefinition): Track {
     typeof def.intro === 'function' ? def.intro(track) : def.intro ?? defaultIntro(track)
   validateIntro(intro)
   return { ...track, intro, id: `${def.id}-${fingerprint(track)}` }
+}
+
+/**
+ * The barriers, both sides, walked along the racing line half a metre at a time: the edge
+ * point is the line pushed out by the sample's `edge` (the barriers' road-side face). A bare
+ * sample ends the run; the next box starts where the road is dressed again.
+ */
+function buildBarriers(path: Sample[]): Surface[] {
+  const out: Surface[] = []
+  const n = path.length
+  type Piece = { a: P2; e: P2; low: number; high: number }
+  /** How far a point is from the line through a and e. */
+  const off = (p: P2, a: P2, e: P2): number => {
+    const d = sub(e, a)
+    return Math.abs(crossXZ(d, sub(p, a))) / (len(d) || 1)
+  }
+  for (const side of [-1, 1]) {
+    const pieces: Piece[] = []
+    let points: P2[] = []
+    let floors: number[] = []
+    let first: P2 | null = null
+    /** Metres of line since the last bare sample, for the funnel. */
+    let fromBare = Infinity
+    const close = (upTo: number): void => {
+      if (upTo > 0) {
+        const span = floors.slice(0, upTo + 1)
+        pieces.push({ a: points[0], e: points[upTo], low: Math.min(...span), high: Math.max(...span) })
+      }
+      points = points.slice(upTo)
+      floors = floors.slice(upTo)
+    }
+    for (let i = 0; i < n; i++) {
+      const a = path[i]
+      const b = path[(i + 1) % n]
+      if (a.bare || b.bare) {
+        close(points.length - 1)
+        points = []
+        floors = []
+        fromBare = 0
+        continue
+      }
+      const segment = Math.hypot(b.pos.x - a.pos.x, b.pos.z - a.pos.z)
+      const steps = Math.max(1, Math.ceil(segment / 0.5))
+      for (let k = 0; k < steps; k++) {
+        const t = k / steps
+        const dir = unit({ x: a.dir.x + (b.dir.x - a.dir.x) * t, z: a.dir.z + (b.dir.z - a.dir.z) * t })
+        const funnel = FUNNEL_WIDTH * Math.max(0, 1 - (fromBare + segment * t) / FUNNEL_LENGTH)
+        const edge = (a.edge ?? STRAIGHT_EDGE) + ((b.edge ?? STRAIGHT_EDGE) - (a.edge ?? STRAIGHT_EDGE)) * t + funnel
+        const e: P2 = {
+          x: a.pos.x + (b.pos.x - a.pos.x) * t + dir.z * side * edge,
+          z: a.pos.z + (b.pos.z - a.pos.z) * t - dir.x * side * edge
+        }
+        first = first ?? e
+        points.push(e)
+        floors.push(a.floor ?? 0)
+        // One piece for as long as the edge stays within `BARRIER_SAG` of a straight line
+        // from where the piece starts: the whole of a straight, a few metres of a corner.
+        // The middle and the quarters are where a curve or a kink strays furthest.
+        const last = points.length - 1
+        const strays = [last >> 2, last >> 1, (3 * last) >> 2].some((j) => off(points[j], points[0], e) > BARRIER_SAG)
+        if (strays) close(last - 1)
+      }
+      fromBare += segment
+    }
+    // The lap closes where it began: the last piece runs on to the first point.
+    if (points.length > 1 && first !== null) {
+      points.push(first)
+      floors.push(floors[floors.length - 1])
+      close(points.length - 1)
+    }
+
+    for (const p of pieces) {
+      const along = sub(p.e, p.a)
+      // The face is the line from a to e; the box stands half its depth behind it, away from
+      // the road. The kit's barrier runs along its X axis, so the box is turned a quarter.
+      const back = scale(unit({ x: along.z * side, z: -along.x * side }), BARRIER_DEPTH / 2)
+      out.push({
+        kind: 'barrier',
+        pos: {
+          x: (p.a.x + p.e.x) / 2 + back.x,
+          y: p.low + (p.high - p.low + BARRIER_HEIGHT) / 2,
+          z: (p.a.z + p.e.z) / 2 + back.z
+        },
+        size: { x: len(along), y: p.high - p.low + BARRIER_HEIGHT, z: BARRIER_DEPTH },
+        rot: [0, yawOf(along) - 90, 0],
+        friction: 0
+      })
+    }
+  }
+  return out
 }
 
 /** Stretches of the lap, as [from, to] distances, where a checkpoint may go. */
@@ -931,12 +1084,26 @@ function buildStraight(
       }
       flags = { inverted: y - h > 6, cpHere: !ceilingMarked && y - h > 6 }
       if (flags.cpHere) ceilingMarked = true
+      // Coming off the slab the car is rolled back upright in the air and can land well
+      // wide, like off a jump: no barriers from the descent to 30 m past it.
+      const geometryS = Math.max(FEATURE_MARGIN * 0.6, (length - CEILING_SPAN) / 2)
+      if (m >= geometryS + 50 && m <= geometryS + 100) flags.bare = true
     } else if (profile) {
       const here = profile(m)
       y = here.y + h
       flags = here.flags
+    } else if (feature === 'start-jump' || feature === 'jump') {
+      // No barriers from the ramp to where the car comes down: a car that leaves the ramp
+      // drifting sideways must land on gravel it can drive back from, not behind a barrier.
+      const s = feature === 'start-jump' ? FEATURE_MARGIN : Math.max(6, (length - JUMP_SPAN) / 2)
+      flags = m >= s && m <= s + JUMP_SPAN ? { bare: true } : undefined
     }
-    b.sample({ x: p.x, y, z: p.z }, dir, distance + m, h ? { ...flags, floor: h } : flags)
+    b.sample({ x: p.x, y, z: p.z }, dir, distance + m, {
+      ...flags,
+      edge: edgeAt(m, length),
+      ...(h ? { floor: h } : {}),
+      ...(h > BARE_ABOVE ? { bare: true } : {})
+    })
   }
   return distance + length
 }
@@ -989,7 +1156,11 @@ function buildClimb(b: Build, from: P2, to: P2, h0: number, h1: number, distance
   for (let i = 1; i <= steps; i++) {
     const m = (length * i) / steps
     const p = at(m)
-    b.sample({ x: p.x, y: ROAD_Y + RIDE_HEIGHT + heightAt(m), z: p.z }, dir, distance + m, { floor: heightAt(m) })
+    b.sample({ x: p.x, y: ROAD_Y + RIDE_HEIGHT + heightAt(m), z: p.z }, dir, distance + m, {
+      floor: heightAt(m),
+      edge: edgeAt(m, length),
+      bare: heightAt(m) > BARE_ABOVE
+    })
   }
   return distance + length
 }
@@ -1071,7 +1242,8 @@ function buildTunnel(b: Build, at: (metres: number) => P2, yaw: number, length: 
     // One checkpoint halfway along the slab: what proves the run was driven upside down.
     const cpHere = !marked && m > slabFrom + TUNNEL_SLAB / 2
     if (cpHere) marked = true
-    return { y, flags: { inverted, cpHere, noCp: m >= s - 10 && m <= dropTo + 15 } }
+    // Bare from the descent to 30 m past it, as for the ceiling (see `buildStraight`).
+    return { y, flags: { inverted, cpHere, noCp: m >= s - 10 && m <= dropTo + 15, bare: m >= slabTo && m <= dropTo + 30 } }
   }
 }
 
@@ -1100,7 +1272,11 @@ function buildBigRamp(b: Build, at: (metres: number) => P2, length: number, h: n
     }
     return {
       y: ROAD_Y + RIDE_HEIGHT + lift,
-      flags: { noCp: m >= s - 10 && m <= s + BIGRAMP_RUN + BIGRAMP_LANDING + 10 }
+      flags: {
+        noCp: m >= s - 10 && m <= s + BIGRAMP_RUN + BIGRAMP_LANDING + 10,
+        // Bare from the ramp to the end of the landing, like a jump (see `buildStraight`).
+        bare: m >= s && m <= s + BIGRAMP_RUN + BIGRAMP_LANDING
+      }
     }
   }
 }
@@ -1147,7 +1323,14 @@ function buildCorkscrew(b: Build, from: P2, dir: P2, length: number, h: number, 
     }
   }
   // Bots arrive flat out: the loop is driven on the throttle, never braked for.
-  lineAlong(0, loopAt, () => 0, (m) => ({ hint: m >= loopAt - 60 ? 'boost' : undefined, noCp: m >= loopAt - 30 }))
+  lineAlong(0, loopAt, () => 0, (m) => ({
+    hint: m >= loopAt - 60 ? 'boost' : undefined,
+    noCp: m >= loopAt - 30,
+    edge: edgeAt(m, loopAt, true, false),
+    // No barriers within the loop's footprint: its chords are corner-wide, the road into
+    // and out of it is not, and a barrier there would stand on the loop's own edge.
+    bare: m > loopAt - 8
+  }))
 
   // The loop, in the straight's own frame: forward along the line, up, and across to the right.
   const F: Vec3 = { x: dir.x, y: 0, z: dir.z }
@@ -1201,10 +1384,10 @@ function buildCorkscrew(b: Build, from: P2, dir: P2, length: number, h: number, 
     }
     const tangent = norm(velocity(t1))
     const heading = Math.hypot(tangent.x, tangent.z) > 0.05 ? unit({ x: tangent.x, z: tangent.z }) : dir
-    put(vadd(e, vscale(normalAt(t1, tangent), RIDE_HEIGHT)), heading, { hint: 'boost', noCp: true })
+    put(vadd(e, vscale(normalAt(t1, tangent), RIDE_HEIGHT)), heading, { hint: 'boost', noCp: true, bare: true })
   }
 
-  lineAlong(loopAt, besideTo, () => offset, () => ({ noCp: true }))
+  lineAlong(loopAt, besideTo, () => offset, () => ({ noCp: true, bare: true }))
 
   // The S back onto the line: flat chords, overlapped like a corner's.
   const acrossAt = (m: number): number => offset * (1 - smoothstep((m - besideTo) / CORK_RETURN))
@@ -1222,10 +1405,10 @@ function buildCorkscrew(b: Build, from: P2, dir: P2, length: number, h: number, 
       rot,
       friction: DEFAULT_FRICTION
     })
-    put({ x: e.x, y: base + RIDE_HEIGHT, z: e.z }, unit(sub(e, a)), { noCp: true })
+    put({ x: e.x, y: base + RIDE_HEIGHT, z: e.z }, unit(sub(e, a)), { noCp: true, edge: CORNER_EDGE })
   }
 
-  lineAlong(backAt, length, () => 0, (m) => ({ noCp: m <= backAt + 15 }))
+  lineAlong(backAt, length, () => 0, (m) => ({ noCp: m <= backAt + 15, edge: edgeAt(m - backAt, length - backAt) }))
   return walked
 }
 

@@ -23,6 +23,15 @@ export async function initRapier(): Promise<void> {
   }
 }
 
+/**
+ * Collision groups: membership in the high 16 bits, what it interacts with in the low 16.
+ * Barriers are a group of their own so the wheel raycasts can leave them out: a chassis
+ * pressed against one is stopped by it, but a wheel that finds its top is a wheel on the
+ * barrier, and it lifted that side of the car up the barrier onto two wheels.
+ */
+const BARRIER_GROUP = (0x0002 << 16) | 0xffff
+const WHEEL_RAYS = (0xffff << 16) | (0xffff & ~0x0002)
+
 /** Wheel order matches CAR.wheelAnchors: FL, FR, RL, RR. */
 const FRONT_WHEELS = [0, 1]
 const REAR_WHEELS = [2, 3]
@@ -180,7 +189,7 @@ class RapierVehicle implements Vehicle {
   updateVehicle(dt: number): void {
     // EXCLUDE_DYNAMIC keeps the suspension raycasts on static track geometry only:
     // cars bump each other chassis-to-chassis instead of driving up each other's roofs.
-    this.controller.updateVehicle(dt, RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC)
+    this.controller.updateVehicle(dt, RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC, WHEEL_RAYS)
     for (let i = 0; i < this.wheelStates.length; i++) {
       const s = this.wheelStates[i]
       s.contact = this.controller.wheelIsInContact(i)
@@ -215,17 +224,22 @@ export class RapierWorld implements PhysicsWorld {
   private buildTrack(track: Track): void {
     // All static geometry hangs off a single fixed body: one island, no per-piece overhead.
     const staticBody = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed())
-    const add = (pos: Vec3, size: Vec3, rot: [number, number, number], friction: number) => {
+    const add = (pos: Vec3, size: Vec3, rot: [number, number, number], friction: number, barrier = false) => {
       const q = quatFromEulerDegrees(rot[0], rot[1], rot[2])
-      this.world.createCollider(
-        RAPIER.ColliderDesc.cuboid(size.x / 2, size.y / 2, size.z / 2)
-          .setTranslation(pos.x, pos.y, pos.z)
-          .setRotation(q)
-          .setFriction(friction),
-        staticBody
-      )
+      const desc = RAPIER.ColliderDesc.cuboid(size.x / 2, size.y / 2, size.z / 2)
+        .setTranslation(pos.x, pos.y, pos.z)
+        .setRotation(q)
+        .setFriction(friction)
+      if (barrier) {
+        // And slippery: friction against the chassis is what turned a car sliding along a
+        // corner's barrier into one stopped by it. Min combines it with the chassis' 0.4 as
+        // the barrier's own, so a car leaning on one keeps its speed and only loses the part
+        // of it that was going into the wall.
+        desc.setCollisionGroups(BARRIER_GROUP).setFrictionCombineRule(RAPIER.CoefficientCombineRule.Min)
+      }
+      this.world.createCollider(desc, staticBody)
     }
-    for (const s of track.surfaces) add(s.pos, s.size, s.rot, s.friction)
+    for (const s of track.surfaces) add(s.pos, s.size, s.rot, s.friction, s.kind === 'barrier')
     for (const o of track.obstacles) add(o.pos, o.size, o.rot, 0.6)
   }
 

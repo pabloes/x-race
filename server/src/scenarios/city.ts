@@ -5,7 +5,7 @@
 
 import { InputBit } from '../../../shared/protocol'
 import type { Track } from '../../../shared/tracks'
-import { approach, BOOST, checkpointAfter, nearestIndex, THROTTLE, type Scenario } from './common'
+import { approach, barrierScenarios, BOOST, checkpointAfter, nearestIndex, THROTTLE, type Scenario } from './common'
 
 export function cityScenarios(track: Track): Scenario[] {
   // Where the set pieces actually are on the generated circuit.
@@ -39,7 +39,8 @@ export function cityScenarios(track: Track): Scenario[] {
       name: 'jump @ 30 m/s air boost',
       start: approach(track, jumpIndex, 30),
       speed: 30,
-      seconds: 7,
+      // Ends on the landing: held on, the car reaches the first corner's barrier at 44 m/s.
+      seconds: 4,
       bits: BOOST,
       boostInAir: true,
       requireFartherThan: { scenario: 'jump @ 30 m/s', metres: 10 },
@@ -95,6 +96,7 @@ export function cityScenarios(track: Track): Scenario[] {
       // in contact while upside down — and that the car comes off it back onto its wheels.
       requireCeiling: true,
       requireUpright: true
-    }))
+    })),
+    ...barrierScenarios(track)
   ]
 }
