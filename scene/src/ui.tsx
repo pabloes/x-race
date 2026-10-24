@@ -331,82 +331,100 @@ const SPEED_BAR_FULL = 240
 const SPEED_SEGMENTS = 12
 
 /**
- * The explorer's own HUD, which draws over the scene's UI and so has to be kept clear of.
- * Measured on the desktop explorer, in its pixels, not ours (see `screenLayout`):
- *  - a rail of buttons down the left edge;
- *  - the scene panel ("RELOAD SCENE") at the top left, beside the rail;
- *  - the chat field at the bottom left (the open chat and the Nearby list cover more, but
- *    only while the player has them open);
- *  - LOCAL TOOLS at the top right, only in preview.
+ * Keeping clear of the explorer's own HUD, which draws over the scene's UI.
+ *
+ * On desktop the explorer says where it is: `interactableArea` is the margin its rail,
+ * scene panel, chat and minimap take from each edge of the canvas, in the canvas's own
+ * pixels, so the fit scale alone turns it into ours (`screenLayout`). The panels sit inside
+ * that area. On a phone the reported area ignores the touch controls, so it is not used
+ * there.
+ *
+ * The floors below hold when the area comes back empty or short, in virtual pixels. 400
+ * across clears the rail and the scene panel (356 explorer pixels) at any UI scale from 0.9
+ * to 2, 150 down clears the panel's 120, and 82 up clears the chat field. LOCAL TOOLS sits
+ * at the top right in preview only, and is not part of the reported area.
  */
-const SAFE_RAIL = 56
-const SAFE_SCENE_PANEL = { width: 300, height: 120 }
-const SAFE_CHAT = { width: 380, height: 70 }
-const SAFE_LOCAL_TOOLS = { width: 150, height: 160 }
-/** Below this many explorer pixels across, the setup card takes the whole width and scrolls. */
-const NARROW_WIDTH = 900
-/**
- * Floors under the conversion above, in virtual pixels, because the conversion rests on
- * what the explorer reports and on Pablo's machine it under-measured: the setup card still
- * landed on the rail and the scene panel. 400 across clears the rail and the panel (356
- * explorer pixels) at any UI scale from 0.9 to 2, and 150 down clears the panel's 120.
- * The startup log in `setupUi` prints the reported figures so this can be calibrated.
- */
+const AREA_MARGIN = 16
 const MIN_LEFT = 400
 const MIN_TOP = 150
+const MIN_BOTTOM = 82
+const LOCAL_TOOLS = { width: 150, height: 160 }
+/** Below this many explorer pixels across, the setup card takes the whole width and scrolls. */
+const NARROW_WIDTH = 900
+
+type Insets = { top: number; left: number; right: number; bottom: number }
 
 type ScreenLayout = {
   /** The canvas in virtual pixels: never less than VIRTUAL_WIDTH x VIRTUAL_HEIGHT. */
   width: number
   height: number
-  /** Virtual pixels per explorer pixel, to turn the SAFE_* sizes into ours. */
-  e: number
+  /** The explorer's HUD margins, in virtual pixels; zero where it reports none. */
+  area: Insets
   narrow: boolean
 }
 
 /** Whether this is a preview, where the explorer adds LOCAL TOOLS at the top right. */
 let preview = false
 
-/**
- * Where the explorer's HUD falls in our pixels.
- *
- * The explorer draws its own HUD at a fixed size in its pixels while ours is scaled to fit
- * the window, so the smaller the window, the more of our screen it covers: in a 640 px
- * window the scene panel alone is a third of the width. `UiCanvasInformation` reports the
- * canvas in device pixels and the pixel ratio beside it; an explorer pixel is `ratio`
- * device pixels and a virtual one is `scale`, hence `e`.
- */
 function screenLayout(): ScreenLayout {
   const canvas = UiCanvasInformation.getOrNull(engine.RootEntity)
   const deviceWidth = canvas !== null && canvas.width > 0 ? canvas.width : VIRTUAL_WIDTH
   const deviceHeight = canvas !== null && canvas.height > 0 ? canvas.height : VIRTUAL_HEIGHT
   const ratio = canvas !== null && canvas.devicePixelRatio > 0 ? canvas.devicePixelRatio : 1
   const scale = Math.min(deviceWidth / VIRTUAL_WIDTH, deviceHeight / VIRTUAL_HEIGHT)
+  const raw = !isMobile() && canvas !== null ? canvas.interactableArea : undefined
   return {
     width: deviceWidth / scale,
     height: deviceHeight / scale,
-    e: ratio / scale,
+    area: {
+      top: (raw?.top ?? 0) / scale,
+      left: (raw?.left ?? 0) / scale,
+      right: (raw?.right ?? 0) / scale,
+      bottom: (raw?.bottom ?? 0) / scale
+    },
     narrow: deviceWidth / ratio < NARROW_WIDTH
   }
 }
 
 /** This frame's layout; `Hud` measures it once before drawing anything. */
-let screen: ScreenLayout = { width: VIRTUAL_WIDTH, height: VIRTUAL_HEIGHT, e: 1, narrow: false }
-
-/** Left edge clear of the rail, and right of the scene panel, in virtual pixels. */
-function clearOfRail(): number {
-  return Math.max(MIN_LEFT, (SAFE_RAIL + 16) * screen.e)
+let screen: ScreenLayout = {
+  width: VIRTUAL_WIDTH,
+  height: VIRTUAL_HEIGHT,
+  area: { top: 0, left: 0, right: 0, bottom: 0 },
+  narrow: false
 }
-function clearOfScenePanel(): number {
-  return Math.max(MIN_LEFT, (SAFE_RAIL + SAFE_SCENE_PANEL.width + 16) * screen.e)
+
+/** The edges of the free area, as distances from the screen edges, in virtual pixels. */
+function insetLeft(): number {
+  return Math.max(MIN_LEFT, screen.area.left + AREA_MARGIN)
+}
+function insetRight(): number {
+  return Math.max(EDGE, screen.area.right + AREA_MARGIN)
+}
+function insetBottom(): number {
+  return Math.max(MIN_BOTTOM, screen.area.bottom + AREA_MARGIN)
+}
+/** Top of the logo and the LEAVE tag, the topmost things on the left. */
+function insetTop(): number {
+  return Math.max(14, screen.area.top + 8)
 }
 /** Top edge of the right-hand column: under LOCAL TOOLS in preview. */
 function rightColumnTop(): number {
-  return preview ? (SAFE_LOCAL_TOOLS.height + 12) * screen.e : EDGE
+  return Math.max(preview ? LOCAL_TOOLS.height + 12 : EDGE, screen.area.top + AREA_MARGIN)
 }
-/** Distance from the bottom that clears the chat field. */
-function clearOfChat(): number {
-  return (SAFE_CHAT.height + 12) * screen.e
+
+/**
+ * Where the logo goes, or null when there is no room for it: right of the floor, as wide as
+ * the space up to the circuit card (or LOCAL TOOLS in preview) allows. Too squeezed to read,
+ * it is left out rather than drawn as a smudge.
+ */
+function logoBox(): { left: number; top: number; width: number } | null {
+  const left = insetLeft()
+  const rightLimit = screen.narrow
+    ? screen.width - insetRight() - (preview ? LOCAL_TOOLS.width : 0)
+    : screen.width - insetRight() - CARD_WIDTH - 24
+  const width = Math.min(LOGO_WIDTH, rightLimit - left)
+  return width < 160 ? null : { left, top: insetTop(), width }
 }
 
 /**
@@ -470,26 +488,18 @@ function Heading(props: { icon: string; title: string; size?: number; children?:
 
 // --- Lobby: logo and setup card -----------------------------------------------------------
 
-/**
- * The logo, to the right of the explorer's scene panel and as wide as the room there
- * allows: up to the circuit card, or to LOCAL TOOLS in preview. Too squeezed to read, it
- * is left out rather than drawn as a smudge.
- */
+/** The logo, in the box `logoBox` finds for it. */
 function Logo() {
   if (hud.phase !== 'lobby' && !hud.spectator) return null
-  const left = clearOfScenePanel()
-  const rightLimit = screen.narrow
-    ? screen.width - EDGE - (preview ? SAFE_LOCAL_TOOLS.width * screen.e : 0)
-    : screen.width - EDGE - CARD_WIDTH - 24
-  const width = Math.min(LOGO_WIDTH, rightLimit - left)
-  if (width < 160) return null
+  const box = logoBox()
+  if (box === null) return null
   return (
     <UiEntity
       uiTransform={{
         positionType: 'absolute',
-        position: { left, top: 14 * screen.e },
-        width,
-        height: width / 4
+        position: { left: box.left, top: box.top },
+        width: box.width,
+        height: box.width / 4
       }}
       uiBackground={BG_LOGO}
     />
@@ -711,13 +721,19 @@ function LobbyCard() {
   if (hud.spectator && !hud.wasSpectator) hud.menuMinimised = true
   hud.wasSpectator = hud.spectator
 
-  const e = screen.e
-  const visibleLeft = clearOfRail()
-  // Under the scene panel; in preview on a narrow window the card also runs under LOCAL TOOLS.
-  const top = Math.max(MIN_TOP, (screen.narrow && preview ? SAFE_LOCAL_TOOLS.height + 12 : SAFE_SCENE_PANEL.height + 10) * e)
-  const width = screen.narrow ? screen.width - visibleLeft - EDGE : LOBBY_WIDTH
+  const visibleLeft = insetLeft()
+  // Under the logo and the explorer's top margin; in preview on a narrow window the card
+  // also runs under LOCAL TOOLS.
+  const logo = logoBox()
+  const top = Math.max(
+    MIN_TOP,
+    screen.area.top + AREA_MARGIN,
+    logo !== null ? logo.top + logo.width / 4 + 12 : 0,
+    screen.narrow && preview ? LOCAL_TOOLS.height + 12 : 0
+  )
+  const width = screen.narrow ? screen.width - visibleLeft - insetRight() : LOBBY_WIDTH
   lobbyScale = width / LOBBY_WIDTH
-  const room = screen.height - clearOfChat() - top
+  const room = screen.height - insetBottom() - top
   const natural = u(LOBBY_CONTENT + LOBBY_PADDING)
   const scrolls = natural > room
 
@@ -1159,7 +1175,7 @@ function RightColumn() {
     <UiEntity
       uiTransform={{
         positionType: 'absolute',
-        position: { right: EDGE - FRAME_GLOW, top: rightColumnTop() - FRAME_GLOW },
+        position: { right: insetRight() - FRAME_GLOW, top: rightColumnTop() - FRAME_GLOW },
         flexDirection: 'column',
         alignItems: 'flex-end'
       }}
@@ -1180,8 +1196,8 @@ function LeaveTag() {
     <UiEntity
       uiTransform={{
         positionType: 'absolute',
-        // Beside the explorer's scene panel, not under it.
-        position: { left: clearOfScenePanel() - 2, top: 14 * screen.e },
+        // Inside the free area, beside the explorer's scene panel rather than under it.
+        position: { left: insetLeft() - 2, top: insetTop() },
         height: 40,
         justifyContent: 'center',
         padding: { left: 16, right: 20 }
@@ -1344,8 +1360,8 @@ function Speedometer() {
     <UiEntity
       uiTransform={{
         positionType: 'absolute',
-        // Right of the rail and above the chat field.
-        position: { left: clearOfRail() - FRAME_GLOW, bottom: clearOfChat() - FRAME_GLOW },
+        // Inside the free area: right of the rail and above the chat field.
+        position: { left: insetLeft() - FRAME_GLOW, bottom: insetBottom() - FRAME_GLOW },
         flexDirection: 'row',
         alignItems: 'flex-end'
       }}
@@ -1518,7 +1534,9 @@ function BottomRight() {
       uiTransform={{
         positionType: 'absolute',
         // On a phone the bottom right is the throttle's; the pill moves up out of its way.
-        position: mobile ? { right: EDGE, top: '42%' } : { right: EDGE, bottom: EDGE },
+        position: mobile
+          ? { right: EDGE, top: '42%' }
+          : { right: insetRight(), bottom: Math.max(EDGE, screen.area.bottom + AREA_MARGIN) },
         flexDirection: 'column',
         alignItems: 'flex-end'
       }}
@@ -1640,21 +1658,23 @@ export function setupUi(): void {
     })
     .catch(() => {})
   // The "?" legend's timer. The UI's own, so it lives here rather than in the game loop.
-  // It also logs, once, what the explorer reports about the canvas, to calibrate the safe
-  // zones against (see MIN_LEFT).
-  let logged = false
+  // It also logs what the explorer reports about the canvas whenever that changes (a
+  // resize, the chat opening), to check the layout against (see MIN_LEFT).
+  let lastTrace = ''
   engine.addSystem((dt: number) => {
-    if (!logged) {
-      const canvas = UiCanvasInformation.getOrNull(engine.RootEntity)
-      if (canvas !== null && canvas.width > 0) {
-        logged = true
+    const canvas = UiCanvasInformation.getOrNull(engine.RootEntity)
+    if (canvas !== null && canvas.width > 0) {
+      const area = canvas.interactableArea
+      const trace =
+        `${canvas.width}x${canvas.height} ratio ${canvas.devicePixelRatio} ` +
+        `area t${area?.top ?? 0} l${area?.left ?? 0} r${area?.right ?? 0} b${area?.bottom ?? 0}`
+      if (trace !== lastTrace) {
+        lastTrace = trace
         const layout = screenLayout()
         console.log(
-          `[roadster] ui canvas ${canvas.width}x${canvas.height} ratio ${canvas.devicePixelRatio} -> ` +
-            `virtual ${Math.round(layout.width)}x${Math.round(layout.height)}, ` +
-            `scale ${(canvas.width / layout.width).toFixed(3)}, ` +
-            `e ${layout.e.toFixed(3)}, narrow ${layout.narrow}, ` +
-            `interactable ${JSON.stringify(canvas.interactableArea ?? null)}`
+          `[roadster] ui canvas ${trace} -> virtual ${Math.round(layout.width)}x${Math.round(layout.height)}, ` +
+            `scale ${(canvas.width / layout.width).toFixed(3)}, narrow ${layout.narrow}, ` +
+            `card left ${Math.round(Math.max(MIN_LEFT, layout.area.left + AREA_MARGIN))}`
         )
       }
     }
