@@ -14,7 +14,7 @@
 
 import { engine } from '@dcl/sdk/ecs'
 import { SNAPSHOT_RATE, TICK_RATE } from '../../shared/constants'
-import { vlen } from '../../shared/math'
+import { vlen, yawDegrees } from '../../shared/math'
 import { CarFlag, InputBit, type GameEvent, type PlayerInfo, type Standing } from '../../shared/protocol'
 import { isTrackId, trackById } from '../../shared/tracks'
 import { activeCheckpoints, activeTrack, setActiveTrack } from './active-track'
@@ -171,6 +171,7 @@ function renderSystem(dt: number): void {
     }
     hud.speedKmh = vlen(mine.vel) * 3.6 * SPEEDO_EXAGGERATION
     hud.charge = mine.charge
+    hud.headingDeg = yawDegrees(mine.rot)
     // Empty battery: the car has already stopped boosting, so stop asking for it too.
     if (mine.charge <= 0) dropBoost()
     hud.flags = mine.flags

@@ -21,9 +21,10 @@
  */
 
 import ReactEcs, { Label, ReactEcsRenderer, UiEntity, type UiBackgroundProps } from '@dcl/sdk/react-ecs'
-import { engine, UiCanvasInformation } from '@dcl/sdk/ecs'
+import { engine, Transform, UiCanvasInformation } from '@dcl/sdk/ecs'
 import { Color4 } from '@dcl/sdk/math'
 import { CHARGE, RACE } from '../../shared/constants'
+import { yawDegrees } from '../../shared/math'
 import { CarFlag, formatTime, type RaceMode, type RacePhase, type Standing, type VoteCount } from '../../shared/protocol'
 import { TRACK_IDS, trackById, type TrackId } from '../../shared/tracks'
 import { activeTrack } from './active-track'
@@ -46,9 +47,6 @@ export const menu = {
   setSpectator: (_on: boolean) => {}
 }
 
-/** Size the mobile controls are drawn at before scaling; see `menuMetrics`. */
-const MENU_DESIGN_WIDTH = 420
-
 /**
  * The screen this HUD is written for.
  *
@@ -63,24 +61,6 @@ const MENU_DESIGN_WIDTH = 420
  */
 const VIRTUAL_WIDTH = 1440
 const VIRTUAL_HEIGHT = 900
-
-/**
- * The mobile controls' scale, derived from the canvas.
- *
- * `UiCanvasInformation` reports the real canvas in device pixels, so it has to be put
- * back into virtual pixels before anything is measured against it. The touch buttons are
- * then given a share of the screen and everything inside them is multiplied by `k`.
- */
-function menuMetrics(): { width: number; k: number; canvasWidth: number; canvasHeight: number } {
-  const canvas = UiCanvasInformation.getOrNull(engine.RootEntity)
-  const deviceWidth = canvas !== null && canvas.width > 0 ? canvas.width : VIRTUAL_WIDTH
-  const deviceHeight = canvas !== null && canvas.height > 0 ? canvas.height : VIRTUAL_HEIGHT
-  const scale = Math.min(deviceWidth / VIRTUAL_WIDTH, deviceHeight / VIRTUAL_HEIGHT)
-  const canvasWidth = deviceWidth / scale
-  const canvasHeight = deviceHeight / scale
-  const width = Math.max(300, Math.min(canvasWidth * 0.36, canvasHeight * 0.62))
-  return { width, k: width / MENU_DESIGN_WIDTH, canvasWidth, canvasHeight }
-}
 
 export type HudState = {
   connected: boolean
@@ -115,6 +95,8 @@ export type HudState = {
   pilots: number
   ready: number
   speedKmh: number
+  /** Which way your car points, in degrees clockwise from +Z, for the way-back arrow. */
+  headingDeg: number
   charge: number
   flags: number
   score: number
@@ -179,6 +161,7 @@ export const hud: HudState = {
   pilots: 0,
   ready: 0,
   speedKmh: 0,
+  headingDeg: 0,
   charge: 0,
   flags: 0,
   score: 0,
@@ -270,9 +253,12 @@ const BG_CHARGE = image('images/ui/charge-fill.png')
 const BG_DOT_ON = image('images/ui/dot-on.png')
 const BG_DOT_OFF = image('images/ui/dot-off.png')
 const BG_LOGO = image('images/ui/logo.png')
+/** The way-back arrow, one image per sixteenth of a turn (see `wayBack`). */
+const ARROWS: UiBackgroundProps[] = []
+for (let i = 0; i < 16; i++) ARROWS.push(image(`images/ui/arrow-${String(i).padStart(2, '0')}.png`))
 
 const ICON: Record<string, UiBackgroundProps> = {}
-for (const name of ['flag', 'mode', 'robot', 'laps', 'person', 'people', 'play', 'eye', 'heart', 'bolt', 'question', 'left', 'right']) {
+for (const name of ['flag', 'mode', 'robot', 'laps', 'person', 'people', 'play', 'eye', 'gas', 'bolt', 'question', 'left', 'right', 'up', 'pedal']) {
   ICON[name] = image(`images/ui/icon-${name}.png`)
 }
 
@@ -1258,6 +1244,72 @@ function Toast() {
   )
 }
 
+/**
+ * Lost: you are getting further from the next checkpoint, or facing well away from it.
+ *
+ * Getting further means for a full second, so a wide line through a corner does not set it
+ * off; facing away means more than 100 degrees off, which no racing line ever is. Either
+ * way an arrow appears at the top, pointing at the checkpoint as seen from the chase
+ * camera, with the distance, and goes again once you are back on course.
+ */
+const wayBack = { shown: false, index: 0, meters: 0, lastDistance: -1, growingMs: 0 }
+
+/** Degrees folded into (-180, 180]. */
+function wrapDegrees(a: number): number {
+  const r = ((a % 360) + 360) % 360
+  return r > 180 ? r - 360 : r
+}
+
+function updateWayBack(dt: number): void {
+  const mine = hud.blips.find((b) => b.mine)
+  const next = hud.nextCheckpoint
+  if (hud.phase !== 'racing' || hud.spectator || mine === undefined || next === null) {
+    wayBack.shown = false
+    wayBack.lastDistance = -1
+    wayBack.growingMs = 0
+    return
+  }
+  const dx = next.x - mine.x
+  const dz = next.z - mine.z
+  const distance = Math.sqrt(dx * dx + dz * dz)
+  // A small dead band, so standing still or sliding along a wall does not count either way.
+  if (wayBack.lastDistance >= 0 && distance > wayBack.lastDistance + 0.01) wayBack.growingMs += dt * 1000
+  else if (distance < wayBack.lastDistance - 0.01) wayBack.growingMs = 0
+  wayBack.lastDistance = distance
+  const bearing = Math.atan2(dx, dz) * (180 / Math.PI)
+  wayBack.shown = wayBack.growingMs >= 1000 || Math.abs(wrapDegrees(bearing - hud.headingDeg)) > 100
+  // Relative to what is on screen: the chase camera, or the car if there is no camera yet.
+  const camera = Transform.getOrNull(engine.CameraEntity)
+  const view = camera !== null ? yawDegrees(camera.rotation) : hud.headingDeg
+  wayBack.index = (((Math.round(wrapDegrees(bearing - view) / 22.5)) % 16) + 16) % 16
+  wayBack.meters = Math.round(distance)
+}
+
+function WayBackArrow() {
+  if (!wayBack.shown) return null
+  return (
+    <UiEntity
+      uiTransform={{
+        positionType: 'absolute',
+        position: { left: 0, top: EDGE + 66 },
+        width: '100%',
+        flexDirection: 'row',
+        justifyContent: 'center'
+      }}
+    >
+      <UiEntity
+        uiTransform={{ flexDirection: 'row', alignItems: 'center', padding: { left: 10, right: 16, top: 4, bottom: 4 } }}
+        uiBackground={BG_TAG}
+      >
+        {/* The same background object for the same index, so the image is only rewritten
+            when the arrow actually turns. */}
+        <UiEntity uiTransform={{ width: 56, height: 56, margin: { right: 8 } }} uiBackground={ARROWS[wayBack.index]} />
+        <Label value={`${wayBack.meters} m`} fontSize={22} color={INK} textAlign="middle-left" textWrap="nowrap" />
+      </UiEntity>
+    </UiEntity>
+  )
+}
+
 /** Countdown, GO, finish and podium lines, in the upper middle of the screen. */
 function BigMessage() {
   if (hud.bigMessage === '') return null
@@ -1356,14 +1408,23 @@ function Speedometer() {
       />
     )
   }
+  // Down on the bottom edge. On desktop it starts right of the rail and keeps above
+  // whatever the explorer reports at the bottom; on a phone it is centred in the gap
+  // between the joystick and the explorer's button cluster.
+  const g = gridScale()
+  const position = isMobile()
+    ? { left: 0, bottom: 8 - FRAME_GLOW }
+    : { left: insetLeft() - FRAME_GLOW, bottom: Math.max(12, screen.area.bottom + 12) - FRAME_GLOW }
   return (
     <UiEntity
       uiTransform={{
         positionType: 'absolute',
-        // Inside the free area: right of the rail and above the chat field.
-        position: { left: insetLeft() - FRAME_GLOW, bottom: insetBottom() - FRAME_GLOW },
+        position,
+        width: isMobile() ? '100%' : 'auto',
         flexDirection: 'row',
-        alignItems: 'flex-end'
+        justifyContent: 'center',
+        alignItems: 'flex-end',
+        padding: isMobile() ? { left: 152 * g, right: (GRID_W - 498) * g } : undefined
       }}
     >
       <UiEntity
@@ -1393,7 +1454,7 @@ function Speedometer() {
         </UiEntity>
         <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', margin: { bottom: 12 } }}>{segments}</UiEntity>
         <UiEntity uiTransform={{ width: '100%', height: 20, flexDirection: 'row', alignItems: 'center' }}>
-          <Icon name="heart" size={20} margin={10} />
+          <Icon name="gas" size={20} margin={10} />
           <UiEntity uiTransform={{ flexGrow: 1, height: 9 }} uiBackground={{ color: rgb(0xffffff, 0.16) }}>
             <UiEntity
               uiTransform={{ width: `${charge * 100}%`, height: '100%' }}
@@ -1534,8 +1595,10 @@ function BottomRight() {
       uiTransform={{
         positionType: 'absolute',
         // On a phone the bottom right is the throttle's; the pill moves up out of its way.
+        // On a phone the right edge is the driving buttons'; the pill goes top left, beside
+        // LEAVE RACE and clear of the explorer's avatar button.
         position: mobile
-          ? { right: EDGE, top: '42%' }
+          ? { left: insetLeft(), top: insetTop() + 50 }
           : { right: insetRight(), bottom: Math.max(EDGE, screen.area.bottom + AREA_MARGIN) },
         flexDirection: 'column',
         alignItems: 'flex-end'
@@ -1563,63 +1626,123 @@ function BottomRight() {
 // --- Touch --------------------------------------------------------------------------------
 
 /**
- * Driving controls for a touch explorer.
+ * The phone grid: 667 x 375, an iPhone SE in points, as GolfCraft lays its touch HUD out.
+ * The explorer's own buttons are measured on it, and the corners they take stay empty:
+ * avatar and chat at the top left (x < 134, y < 52), the joystick at the bottom left
+ * (x < 152, y > 252), and E, F, +, hand and jump at the bottom right (x > 498, y > 232).
  *
- * Two jobs, and they are different. The throttle is a button of ours: there is no key to
- * hold, so it feeds `touch.throttle`, and because that goes through the same path as the
- * keyboard the double-tap-for-boost works with a thumb exactly as it does with W — which
- * is why the button says so.
- *
- * The other three are *labels*. The mobile explorer already draws its own round buttons
- * for jump and the two action keys; what it does not know is what they do in this scene,
- * so these sit over them and say. Their positions are percentages of the screen because
- * that is where those buttons are, and if the explorer ever moves them, these two numbers
- * are what needs changing.
+ * A box is anchored to the nearest edges rather than to a centred grid, because that is
+ * how the explorer anchors its buttons: on a phone wider than 16:9 the cluster stays in
+ * the corner, and so must the labels that sit beside it.
  */
-function MobileControls() {
-  if (!isMobile()) return null
-  const k = menuMetrics().k
-  const cap = (label: string, bottom: `${number}%`, right: `${number}%`) => (
+const GRID_W = 667
+const GRID_H = 375
+
+function gridScale(): number {
+  return Math.min(screen.width / GRID_W, screen.height / GRID_H)
+}
+
+function gridBox(x: number, y: number, w: number, h: number): { left: number; top: number; width: number; height: number } {
+  const g = gridScale()
+  return {
+    left: x < GRID_W / 2 ? x * g : screen.width - (GRID_W - x) * g,
+    top: y < GRID_H / 2 ? y * g : screen.height - (GRID_H - y) * g,
+    width: w * g,
+    height: h * g
+  }
+}
+
+/**
+ * A button that acts as a held key: down on touch, up on release or when the finger slides
+ * off it, as GolfCraft's hold buttons do.
+ */
+function HoldButton(props: {
+  key?: string
+  box: [number, number, number, number]
+  icon: string
+  label: string
+  held: boolean
+  set: (on: boolean) => void
+}) {
+  const b = gridBox(...props.box)
+  const g = gridScale()
+  return (
     <UiEntity
-      key={label}
       uiTransform={{
         positionType: 'absolute',
-        position: { bottom, right },
-        width: 'auto',
-        height: 'auto',
-        padding: { left: 6 * k, right: 6 * k, top: 2 * k, bottom: 2 * k }
+        position: { left: b.left - CARD_GLOW, top: b.top - CARD_GLOW },
+        width: b.width + 2 * CARD_GLOW,
+        height: b.height + 2 * CARD_GLOW,
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center'
       }}
-      uiBackground={{ color: Color4.create(0, 0, 0, 0.55) }}
+      uiBackground={props.held ? BG_ON : BG_OUTLINE}
+      onMouseDown={() => props.set(true)}
+      onMouseUp={() => props.set(false)}
+      onMouseLeave={() => props.set(false)}
     >
-      <Label value={label} fontSize={12 * k} color={ACCENT} textAlign="middle-center" />
+      <Icon name={props.icon} size={20 * g} />
+      <Label value={props.label} fontSize={9 * g} color={INK} textAlign="middle-center" textWrap="nowrap" />
     </UiEntity>
   )
+}
+
+/**
+ * A caption beside one of the explorer's own buttons. Their icons are the explorer's and
+ * cannot be changed, so what they do in this scene is said next to them, outside the circle.
+ */
+function NativeTag(props: { key?: string; box: [number, number, number, number]; icon?: string; label: string }) {
+  const b = gridBox(...props.box)
+  const g = gridScale()
   return (
-    <UiEntity uiTransform={{ positionType: 'absolute', width: '100%', height: '100%' }} uiBackground={{ color: Color4.create(0, 0, 0, 0) }}>
-      {cap('THRUSTERS', '22%', '6%')}
-      {cap('ROLL', '34%', '20%')}
-      {cap('RESPAWN', '34%', '6%')}
-      <UiEntity
-        uiTransform={{
-          positionType: 'absolute',
-          position: { bottom: '6%', right: '6%' },
-          width: 150 * k,
-          height: 76 * k,
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center'
-        }}
-        uiBackground={{ color: Color4.create(0.1, 0.85, 1, 0.35) }}
-        onMouseDown={() => {
-          touch.throttle = true
-        }}
-        onMouseUp={() => {
-          touch.throttle = false
-        }}
-      >
-        <Label value="ACCELERATE" fontSize={16 * k} color={Color4.White()} textAlign="middle-center" />
-        <Label value="double touch for boost" fontSize={10 * k} color={Color4.White()} textAlign="middle-center" />
-      </UiEntity>
+    <UiEntity
+      uiTransform={{
+        positionType: 'absolute',
+        position: { left: b.left, top: b.top },
+        width: b.width,
+        height: b.height,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center'
+      }}
+      uiBackground={{ color: rgb(0x061224, 0.8) }}
+    >
+      {props.icon !== undefined ? <Icon name={props.icon} size={11 * g} margin={3 * g} /> : null}
+      <Label value={props.label} fontSize={8 * g} color={INK} textAlign="middle-center" textWrap="nowrap" />
+    </UiEntity>
+  )
+}
+
+/**
+ * Driving controls for a touch explorer, while racing.
+ *
+ * On the left, ours: steer left and right (both together brake, and reverse once stopped)
+ * and LIFT for the thrusters above them, clear of the explorer's joystick, which does
+ * nothing in a race because the avatar's movement is locked. On the right, the explorer's
+ * own buttons do the driving (jump is the throttle, E rolls, F respawns; see `input.ts`)
+ * and carry a caption each. BOOST is ours too, above that cluster: the explorer's hand
+ * button is IA_POINTER, which every touch on a phone also fires, so it could not be told
+ * apart from a thumb on the steering.
+ *
+ * Nothing here exists outside a race, so nothing here can catch a touch meant for the lobby.
+ */
+function MobileControls() {
+  const shown = isMobile() && !hud.spectator && (hud.phase === 'countdown' || hud.phase === 'racing')
+  if (!shown) {
+    // A button that disappears under a finger never hears it lift.
+    touch.left = touch.right = touch.lift = touch.boost = false
+    return null
+  }
+  return (
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { left: 0, top: 0 }, width: '100%', height: '100%' }}>
+      <HoldButton box={[12, 116, 136, 42]} icon="up" label="LIFT" held={touch.lift} set={(on) => { touch.lift = on }} />
+      <HoldButton box={[12, 166, 64, 80]} icon="left" label="LEFT" held={touch.left} set={(on) => { touch.left = on }} />
+      <HoldButton box={[84, 166, 64, 80]} icon="right" label="RIGHT" held={touch.right} set={(on) => { touch.right = on }} />
+      <HoldButton box={[600, 168, 58, 56]} icon="bolt" label="BOOST" held={touch.boost} set={(on) => { touch.boost = on }} />
+      <NativeTag box={[528, 225, 64, 15]} label="RESPAWN" />
+      <NativeTag box={[456, 285, 50, 16]} label="ROLL" />
+      <NativeTag box={[548, 358, 80, 16]} icon="pedal" label="THROTTLE" />
     </UiEntity>
   )
 }
@@ -1644,6 +1767,7 @@ function Hud() {
       <LeaveTag />
       <LobbyCard />
       <BigMessage />
+      <WayBackArrow />
       <Toast />
     </UiEntity>
   )
@@ -1679,5 +1803,6 @@ export function setupUi(): void {
       }
     }
     if (hud.controlsMs > 0) hud.controlsMs = Math.max(0, hud.controlsMs - dt * 1000)
+    updateWayBack(dt)
   })
 }

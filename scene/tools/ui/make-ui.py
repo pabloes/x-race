@@ -314,10 +314,12 @@ def i_eye(d, s):
     d.ellipse((10.5 * s, 10.5 * s, 13.5 * s, 13.5 * s), fill=255)
 
 
-def i_heart(d, s):
-    d.ellipse((2 * s, 3.5 * s, 12.5 * s, 14 * s), fill=255)
-    d.ellipse((11.5 * s, 3.5 * s, 22 * s, 14 * s), fill=255)
-    d.polygon([(2.6 * s, 11 * s), (12 * s, 21.5 * s), (21.4 * s, 11 * s), (12 * s, 8 * s)], fill=255)
+def i_gas(d, s):
+    # Fuel pump, for the charge bar: body with its dial window, hose and nozzle on the side.
+    d.rounded_rectangle((3 * s, 3 * s, 14 * s, 21 * s), radius=1.5 * s, fill=255)
+    d.rectangle((5.5 * s, 5.5 * s, 11.5 * s, 10 * s), fill=0)
+    d.rectangle((1.5 * s, 20 * s, 15.5 * s, 22.5 * s), fill=255)
+    stroke_poly(d, [(14, 8), (18, 8), (19.5, 10), (19.5, 17), (21, 18.5), (21, 6), (18.5, 3.5)], s, 1.8)
 
 
 def i_bolt(d, s):
@@ -338,6 +340,21 @@ def i_right(d, s):
     stroke_poly(d, [(9, 4), (17, 12), (9, 20)], s, 3)
 
 
+def i_up(d, s):
+    # Lift: an arrow up off a bar, for the thrusters.
+    d.polygon([(12 * s, 2 * s), (20 * s, 11 * s), (15 * s, 11 * s), (15 * s, 17 * s), (9 * s, 17 * s),
+               (9 * s, 11 * s), (4 * s, 11 * s)], fill=255)
+    d.rectangle((4 * s, 19.5 * s, 20 * s, 22 * s), fill=255)
+
+
+def i_pedal(d, s):
+    # Accelerator pedal: a tall plate, ribbed, on its hinge.
+    d.polygon([(7 * s, 2 * s), (18 * s, 2 * s), (19 * s, 18 * s), (6 * s, 18 * s)], fill=255)
+    for y in (6, 10, 14):
+        d.rectangle((8.5 * s, y * s, 16.5 * s, (y + 1.4) * s), fill=0)
+    d.rectangle((10 * s, 19 * s, 15 * s, 22 * s), fill=255)
+
+
 ICONS = {
     # name: (drawing, colour). Colours are baked rather than tinted in the scene: the
     # renderer multiplies a background colour into its texture, but an icon that only
@@ -350,12 +367,40 @@ ICONS = {
     'people': (i_people, INK + (255,)),
     'play': (i_play, GREEN_TEXT + (255,)),
     'eye': (i_eye, ACCENT + (255,)),
-    'heart': (i_heart, PINK + (255,)),
+    'gas': (i_gas, PINK + (255,)),
     'bolt': (i_bolt, INK + (255,)),
     'question': (i_question, INK + (255,)),
     'left': (i_left, INK + (255,)),
     'right': (i_right, INK + (255,)),
+    'up': (i_up, INK + (255,)),
+    'pedal': (i_pedal, INK + (255,)),
 }
+
+
+# --- Checkpoint arrow --------------------------------------------------------------------
+
+ARROW_STEPS = 16
+
+
+def arrow(index, size=64):
+    """
+    The way-back arrow, turned `index` sixteenths of a turn clockwise from straight up
+    (straight ahead). The renderer cannot rotate UI, so every heading is its own image and
+    the HUD picks the nearest.
+    """
+    big = size * SS
+    m = Image.new('L', (big, big), 0)
+    d = ImageDraw.Draw(m)
+    u = big / 24.0
+    d.polygon([(12 * u, 2 * u), (21 * u, 13 * u), (15.5 * u, 13 * u), (15.5 * u, 22 * u),
+               (8.5 * u, 22 * u), (8.5 * u, 13 * u), (3 * u, 13 * u)], fill=255)
+    m = m.rotate(-360.0 * index / ARROW_STEPS, resample=Image.BICUBIC)
+    keyline = m.filter(ImageFilter.MaxFilter(SS * 2 + 1))
+    img = Image.new('RGBA', (big, big), (0, 0, 0, 0))
+    img = Image.alpha_composite(img, glow(keyline, ACCENT, 3, 0.5))
+    img = Image.alpha_composite(img, layer((4, 12, 24, 230), keyline))
+    img = Image.alpha_composite(img, layer(ACCENT + (255,), m))
+    return down(img, (size, size))
 
 
 # --- Logo ---------------------------------------------------------------------------------
@@ -637,6 +682,9 @@ def main():
 
     for name, (fn, colour) in ICONS.items():
         put(icon(fn, colour), f'icon-{name}.png')
+
+    for i in range(ARROW_STEPS):
+        put(arrow(i), f'arrow-{i:02d}.png')
 
     put(thumbnail(thumb_city), 'thumb-city.png')
     put(thumbnail(thumb_skyline), 'thumb-skyline.png')
