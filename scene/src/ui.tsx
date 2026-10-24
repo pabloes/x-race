@@ -345,6 +345,15 @@ const SAFE_CHAT = { width: 380, height: 70 }
 const SAFE_LOCAL_TOOLS = { width: 150, height: 160 }
 /** Below this many explorer pixels across, the setup card takes the whole width and scrolls. */
 const NARROW_WIDTH = 900
+/**
+ * Floors under the conversion above, in virtual pixels, because the conversion rests on
+ * what the explorer reports and on Pablo's machine it under-measured: the setup card still
+ * landed on the rail and the scene panel. 400 across clears the rail and the panel (356
+ * explorer pixels) at any UI scale from 0.9 to 2, and 150 down clears the panel's 120.
+ * The startup log in `setupUi` prints the reported figures so this can be calibrated.
+ */
+const MIN_LEFT = 400
+const MIN_TOP = 150
 
 type ScreenLayout = {
   /** The canvas in virtual pixels: never less than VIRTUAL_WIDTH x VIRTUAL_HEIGHT. */
@@ -386,10 +395,10 @@ let screen: ScreenLayout = { width: VIRTUAL_WIDTH, height: VIRTUAL_HEIGHT, e: 1,
 
 /** Left edge clear of the rail, and right of the scene panel, in virtual pixels. */
 function clearOfRail(): number {
-  return (SAFE_RAIL + 16) * screen.e
+  return Math.max(MIN_LEFT, (SAFE_RAIL + 16) * screen.e)
 }
 function clearOfScenePanel(): number {
-  return (SAFE_RAIL + SAFE_SCENE_PANEL.width + 16) * screen.e
+  return Math.max(MIN_LEFT, (SAFE_RAIL + SAFE_SCENE_PANEL.width + 16) * screen.e)
 }
 /** Top edge of the right-hand column: under LOCAL TOOLS in preview. */
 function rightColumnTop(): number {
@@ -705,7 +714,7 @@ function LobbyCard() {
   const e = screen.e
   const visibleLeft = clearOfRail()
   // Under the scene panel; in preview on a narrow window the card also runs under LOCAL TOOLS.
-  const top = (screen.narrow && preview ? SAFE_LOCAL_TOOLS.height + 12 : SAFE_SCENE_PANEL.height + 10) * e
+  const top = Math.max(MIN_TOP, (screen.narrow && preview ? SAFE_LOCAL_TOOLS.height + 12 : SAFE_SCENE_PANEL.height + 10) * e)
   const width = screen.narrow ? screen.width - visibleLeft - EDGE : LOBBY_WIDTH
   lobbyScale = width / LOBBY_WIDTH
   const room = screen.height - clearOfChat() - top
@@ -1631,7 +1640,24 @@ export function setupUi(): void {
     })
     .catch(() => {})
   // The "?" legend's timer. The UI's own, so it lives here rather than in the game loop.
+  // It also logs, once, what the explorer reports about the canvas, to calibrate the safe
+  // zones against (see MIN_LEFT).
+  let logged = false
   engine.addSystem((dt: number) => {
+    if (!logged) {
+      const canvas = UiCanvasInformation.getOrNull(engine.RootEntity)
+      if (canvas !== null && canvas.width > 0) {
+        logged = true
+        const layout = screenLayout()
+        console.log(
+          `[roadster] ui canvas ${canvas.width}x${canvas.height} ratio ${canvas.devicePixelRatio} -> ` +
+            `virtual ${Math.round(layout.width)}x${Math.round(layout.height)}, ` +
+            `scale ${(canvas.width / layout.width).toFixed(3)}, ` +
+            `e ${layout.e.toFixed(3)}, narrow ${layout.narrow}, ` +
+            `interactable ${JSON.stringify(canvas.interactableArea ?? null)}`
+        )
+      }
+    }
     if (hud.controlsMs > 0) hud.controlsMs = Math.max(0, hud.controlsMs - dt * 1000)
   })
 }
