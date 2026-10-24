@@ -14,6 +14,12 @@
  *   E       assisted barrel roll, while airborne
  *   F       request a respawn at the last checkpoint
  *
+ * On a phone the explorer's own buttons stand in for some keys: jump is the throttle
+ * (thrusters move to an on-screen LIFT button), E rolls and F respawns, the same actions
+ * as on a keyboard. Steering, lift and boost are buttons of ours (`touch`). The explorer's
+ * hand button is IA_POINTER, which every touch on a phone also fires, our buttons
+ * included, so nothing reads it.
+ *
  * The double tap is detected here rather than on the server: it is a property of how the
  * player pressed the key, and the server only ever needs to know whether boost is on.
  */
@@ -21,19 +27,20 @@
 import { InputAction, inputSystem, PointerEventType } from '@dcl/sdk/ecs'
 import { TRICK } from '../../shared/constants'
 import { InputBit } from '../../shared/protocol'
+import { isMobile } from './platform'
 
 /**
  * What the on-screen buttons are holding down, for explorers with no keyboard.
  *
- * They feed the same path as the keys rather than a parallel one: the touch throttle is
- * read as the throttle, so the double-tap-for-boost logic below applies to a thumb
- * exactly as it does to a key, with no second implementation to keep in step.
+ * Both steering buttons at once is the brake (and reverse): a phone has no room for a
+ * fourth big button on the left, and pressing both is not otherwise a thing anyone does.
+ * BOOST is the throttle as well, because the thumb on it cannot also be on jump.
  */
 export const touch = {
-  throttle: false,
-  thrust: false,
-  roll: false,
-  respawn: false
+  left: false,
+  right: false,
+  lift: false,
+  boost: false
 }
 
 /** Milliseconds since the scene started, advanced by the caller each frame. */
@@ -48,7 +55,11 @@ let boostArmed = false
 export function readInputBits(dt: number): number {
   now += dt * 1000
 
-  const throttle = inputSystem.isPressed(InputAction.IA_FORWARD) || touch.throttle
+  const mobile = isMobile()
+  const throttle =
+    inputSystem.isPressed(InputAction.IA_FORWARD) ||
+    (mobile && inputSystem.isPressed(InputAction.IA_JUMP)) ||
+    touch.boost
   if (throttle && !wasThrottle) {
     // A double tap is a *tap* and then a press: the one before this has to have been
     // short as well as recent. Timing only the gap meant that any brief lift of the
@@ -66,13 +77,14 @@ export function readInputBits(dt: number): number {
 
   let bits = 0
   if (throttle) bits |= InputBit.Throttle
-  if (boostArmed && throttle) bits |= InputBit.Boost
-  if (inputSystem.isPressed(InputAction.IA_BACKWARD)) bits |= InputBit.Brake
-  if (inputSystem.isPressed(InputAction.IA_LEFT)) bits |= InputBit.Left
-  if (inputSystem.isPressed(InputAction.IA_RIGHT)) bits |= InputBit.Right
+  if ((boostArmed && throttle) || touch.boost) bits |= InputBit.Boost
+  const touchBrake = touch.left && touch.right
+  if (inputSystem.isPressed(InputAction.IA_BACKWARD) || touchBrake) bits |= InputBit.Brake
+  if (inputSystem.isPressed(InputAction.IA_LEFT) || (touch.left && !touchBrake)) bits |= InputBit.Left
+  if (inputSystem.isPressed(InputAction.IA_RIGHT) || (touch.right && !touchBrake)) bits |= InputBit.Right
   if (inputSystem.isPressed(InputAction.IA_WALK)) bits |= InputBit.Handbrake
-  if (inputSystem.isPressed(InputAction.IA_JUMP) || touch.thrust) bits |= InputBit.Thrust
-  if (inputSystem.isPressed(InputAction.IA_PRIMARY) || touch.roll) bits |= InputBit.Flip
+  if ((!mobile && inputSystem.isPressed(InputAction.IA_JUMP)) || touch.lift) bits |= InputBit.Thrust
+  if (inputSystem.isPressed(InputAction.IA_PRIMARY)) bits |= InputBit.Flip
   return bits
 }
 
@@ -91,9 +103,5 @@ export function dropBoost(): void {
 
 /** True on the frame the respawn key goes down. */
 export function respawnPressed(): boolean {
-  if (touch.respawn) {
-    touch.respawn = false
-    return true
-  }
   return inputSystem.isTriggered(InputAction.IA_SECONDARY, PointerEventType.PET_DOWN)
 }

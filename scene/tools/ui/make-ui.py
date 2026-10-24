@@ -338,6 +338,21 @@ def i_right(d, s):
     stroke_poly(d, [(9, 4), (17, 12), (9, 20)], s, 3)
 
 
+def i_up(d, s):
+    # Lift: an arrow up off a bar, for the thrusters.
+    d.polygon([(12 * s, 2 * s), (20 * s, 11 * s), (15 * s, 11 * s), (15 * s, 17 * s), (9 * s, 17 * s),
+               (9 * s, 11 * s), (4 * s, 11 * s)], fill=255)
+    d.rectangle((4 * s, 19.5 * s, 20 * s, 22 * s), fill=255)
+
+
+def i_pedal(d, s):
+    # Accelerator pedal: a tall plate, ribbed, on its hinge.
+    d.polygon([(7 * s, 2 * s), (18 * s, 2 * s), (19 * s, 18 * s), (6 * s, 18 * s)], fill=255)
+    for y in (6, 10, 14):
+        d.rectangle((8.5 * s, y * s, 16.5 * s, (y + 1.4) * s), fill=0)
+    d.rectangle((10 * s, 19 * s, 15 * s, 22 * s), fill=255)
+
+
 ICONS = {
     # name: (drawing, colour). Colours are baked rather than tinted in the scene: the
     # renderer multiplies a background colour into its texture, but an icon that only
@@ -355,6 +370,8 @@ ICONS = {
     'question': (i_question, INK + (255,)),
     'left': (i_left, INK + (255,)),
     'right': (i_right, INK + (255,)),
+    'up': (i_up, INK + (255,)),
+    'pedal': (i_pedal, INK + (255,)),
 }
 
 
