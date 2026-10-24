@@ -314,10 +314,12 @@ def i_eye(d, s):
     d.ellipse((10.5 * s, 10.5 * s, 13.5 * s, 13.5 * s), fill=255)
 
 
-def i_heart(d, s):
-    d.ellipse((2 * s, 3.5 * s, 12.5 * s, 14 * s), fill=255)
-    d.ellipse((11.5 * s, 3.5 * s, 22 * s, 14 * s), fill=255)
-    d.polygon([(2.6 * s, 11 * s), (12 * s, 21.5 * s), (21.4 * s, 11 * s), (12 * s, 8 * s)], fill=255)
+def i_gas(d, s):
+    # Fuel pump, for the charge bar: body with its dial window, hose and nozzle on the side.
+    d.rounded_rectangle((3 * s, 3 * s, 14 * s, 21 * s), radius=1.5 * s, fill=255)
+    d.rectangle((5.5 * s, 5.5 * s, 11.5 * s, 10 * s), fill=0)
+    d.rectangle((1.5 * s, 20 * s, 15.5 * s, 22.5 * s), fill=255)
+    stroke_poly(d, [(14, 8), (18, 8), (19.5, 10), (19.5, 17), (21, 18.5), (21, 6), (18.5, 3.5)], s, 1.8)
 
 
 def i_bolt(d, s):
@@ -365,7 +367,7 @@ ICONS = {
     'people': (i_people, INK + (255,)),
     'play': (i_play, GREEN_TEXT + (255,)),
     'eye': (i_eye, ACCENT + (255,)),
-    'heart': (i_heart, PINK + (255,)),
+    'gas': (i_gas, PINK + (255,)),
     'bolt': (i_bolt, INK + (255,)),
     'question': (i_question, INK + (255,)),
     'left': (i_left, INK + (255,)),

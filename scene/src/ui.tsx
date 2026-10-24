@@ -251,7 +251,7 @@ const BG_DOT_OFF = image('images/ui/dot-off.png')
 const BG_LOGO = image('images/ui/logo.png')
 
 const ICON: Record<string, UiBackgroundProps> = {}
-for (const name of ['flag', 'mode', 'robot', 'laps', 'person', 'people', 'play', 'eye', 'heart', 'bolt', 'question', 'left', 'right', 'up', 'pedal']) {
+for (const name of ['flag', 'mode', 'robot', 'laps', 'person', 'people', 'play', 'eye', 'gas', 'bolt', 'question', 'left', 'right', 'up', 'pedal']) {
   ICON[name] = image(`images/ui/icon-${name}.png`)
 }
 
@@ -1335,14 +1335,23 @@ function Speedometer() {
       />
     )
   }
+  // Down on the bottom edge. On desktop it starts right of the rail and keeps above
+  // whatever the explorer reports at the bottom; on a phone it is centred in the gap
+  // between the joystick and the explorer's button cluster.
+  const g = gridScale()
+  const position = isMobile()
+    ? { left: 0, bottom: 8 - FRAME_GLOW }
+    : { left: insetLeft() - FRAME_GLOW, bottom: Math.max(12, screen.area.bottom + 12) - FRAME_GLOW }
   return (
     <UiEntity
       uiTransform={{
         positionType: 'absolute',
-        // Inside the free area: right of the rail and above the chat field.
-        position: { left: insetLeft() - FRAME_GLOW, bottom: insetBottom() - FRAME_GLOW },
+        position,
+        width: isMobile() ? '100%' : 'auto',
         flexDirection: 'row',
-        alignItems: 'flex-end'
+        justifyContent: 'center',
+        alignItems: 'flex-end',
+        padding: isMobile() ? { left: 152 * g, right: (GRID_W - 498) * g } : undefined
       }}
     >
       <UiEntity
@@ -1372,7 +1381,7 @@ function Speedometer() {
         </UiEntity>
         <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', margin: { bottom: 12 } }}>{segments}</UiEntity>
         <UiEntity uiTransform={{ width: '100%', height: 20, flexDirection: 'row', alignItems: 'center' }}>
-          <Icon name="heart" size={20} margin={10} />
+          <Icon name="gas" size={20} margin={10} />
           <UiEntity uiTransform={{ flexGrow: 1, height: 9 }} uiBackground={{ color: rgb(0xffffff, 0.16) }}>
             <UiEntity
               uiTransform={{ width: `${charge * 100}%`, height: '100%' }}

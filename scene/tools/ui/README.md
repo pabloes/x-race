@@ -22,7 +22,7 @@ fracción que `ui.tsx` pasa en `textureSlices`. El conjunto pesa unos 250 KB (pr
 | `key-cap.png` | Teclas de la leyenda de controles |
 | `toast-frame.png` | Aviso de evento con puntas; se estira solo a lo ancho |
 | `seg-on.png`, `seg-off.png`, `charge-fill.png`, `dot-*.png` | Barra segmentada de velocidad, relleno de carga, puntos del carrusel |
-| `icon-*.png` (32 px) | Iconos con su color ya puesto |
+| `icon-*.png` (32 px) | Iconos con su color ya puesto (gas en la barra de carga, pedal y elevar en los controles táctiles) |
 | `thumb-<circuito>.png` (512 x 128) | Miniatura del carrusel, dibujada a 356 x 100 y comprimida a potencia de dos; la UI la estira de vuelta |
 
 ## Reglas
