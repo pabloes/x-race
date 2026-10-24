@@ -13,7 +13,7 @@
     "test:decor": "npm --prefix server run test:decor",
     "bot": "npm --prefix server run bot",
     "typecheck": "npm --prefix server run typecheck && npm --prefix scene run build",
-    "pack:server": "rm -f caprover.tar && tar -cf caprover.tar --exclude='./caprover.tar' --exclude='./node_modules' --exclude='./*/node_modules' --exclude='./scene' --exclude='./.git' --exclude='./.idea' --exclude='./server/dist' ."
+    "pack:server": "rm -f caprover.tar && tar -cf caprover.tar --exclude='./caprover.tar' --exclude='./node_modules' --exclude='./*/node_modules' --exclude='./scene' --exclude='./.git' --exclude='./.idea' --exclude='./.claude' --exclude='./docs' --exclude='./server/dist' ."
   },
   "engines": {
     "node": ">=20"

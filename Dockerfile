@@ -18,7 +18,9 @@ RUN cd server && npm ci
 COPY shared ./shared
 COPY server/tsconfig.json ./server/
 COPY server/src ./server/src
-RUN cd server && npm run build
+# decor-check.ts is a dev tool that reads the scene's decoration layout, and the scene is
+# not part of this build context, so it would fail the typecheck for nothing it ships.
+RUN rm server/src/decor-check.ts && cd server && npm run build
 
 FROM node:20-alpine AS runtime
 ENV NODE_ENV=production
