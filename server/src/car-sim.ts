@@ -399,7 +399,9 @@ export class CarSim {
       // wheel contact when the car drops onto its springs at the start — or skims a bump —
       // are enough for the pitch torque to flip it onto its roof.
       const airControl = racing && !this.trick && this.airborneMs > TRICK.minAirControlMs
-      const pitchInput = throttle ? 1 : brake ? -1 : 0
+      // W is the boost key as well as nose down: while the boost burns in the air it is
+      // only the boost, so the car flies where it points and S still lifts the nose.
+      const pitchInput = throttle && !this.boosting ? 1 : brake ? -1 : 0
       if (airControl && (steerInput !== 0 || pitchInput !== 0)) {
         const yawT = steerInput * CAR.airControlTorque
         const pitchT = pitchInput * CAR.airControlTorque
@@ -414,6 +416,13 @@ export class CarSim {
         // roll) and during the inverted run, where being upside down is the point.
         // Thrusting runs its own, much stronger version of this above.
         this.applyLevelling(v, localUp, angvel, CAR.selfRightTorque)
+      }
+
+      // The boost has no road to push against up here, so it pushes the chassis instead:
+      // along the nose, as an impulse per tick like every other force.
+      if (this.boosting && vdot(linvel, localForward) < CAR.airBoostTopSpeed) {
+        const f = CAR.airBoostForce
+        v.applyForce({ x: localForward.x * f, y: localForward.y * f, z: localForward.z * f })
       }
 
       // Landing assist: past a real fall speed the belly nozzles light and the car comes

@@ -315,7 +315,21 @@ export const CAR = {
    * Levelling torque while the thrusters fire. Far stronger than the passive assist:
    * holding space is meant to be a guaranteed recovery, not a suggestion.
    */
-  thrusterLevelTorque: 42000
+  thrusterLevelTorque: 42000,
+  /**
+   * The boost in the air: a push along the chassis' own nose, not along the ground, so a
+   * car pointing up climbs. It drains the bar like the boost on the road, so a full bar is
+   * two and a half seconds of it at most.
+   *
+   * Sized from the jumps: a flat-out launch off the main straight's ramp leaves it already at
+   * the boost's 40 m/s, and with this held through the flight it comes down 14 m further on
+   * (`jump @ 30 m/s air boost` in test:features measures it against the same jump without).
+   * Up to `airBoostTopSpeed`, a little over the road boost's top speed: capped at 40 the push
+   * could only cancel the air drag and the jump got 6 m longer; at 52 it got 23 m longer,
+   * which is flying, not jumping.
+   */
+  airBoostForce: 16000,
+  airBoostTopSpeed: 44
 } as const
 
 // --- Charge bar (battery) ---

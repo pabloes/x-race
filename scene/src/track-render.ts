@@ -33,7 +33,8 @@ const HOLE_TILE = 8
 /** Surfaces that get the asphalt texture rather than flat colour. */
 const PAVED: SurfaceKind[] = ['road', 'ramp']
 
-const PALETTE: Record<SurfaceKind, Color4> = {
+/** Barriers are absent: the kit draws them (decor.ts), and an avatar walks through them. */
+const PALETTE: Record<Exclude<SurfaceKind, 'barrier'>, Color4> = {
   ground: Color4.create(0.1, 0.1, 0.12, 1),
   // These multiply the asphalt texture, so they are tints rather than colours: a dark
   // value here is what made the circuit look like a trench.
@@ -74,7 +75,7 @@ function spawnSurface(surface: Surface): Entity {
   MeshRenderer.setBox(entity)
   const paved = PAVED.indexOf(surface.kind) !== -1
   Material.setPbrMaterial(entity, {
-    albedoColor: PALETTE[surface.kind],
+    albedoColor: PALETTE[surface.kind as Exclude<SurfaceKind, 'barrier'>],
     texture: paved
       ? Material.Texture.Common({ src: 'images/asphalt.png', wrapMode: TextureWrapMode.TWM_REPEAT })
       : undefined,
@@ -149,7 +150,7 @@ function floorPlane(x: number, z: number, width: number, depth: number, gravel: 
 export function buildTrack(track: Track): void {
   buildGround(track)
   for (const surface of track.surfaces) {
-    if (surface.kind === 'ground') continue
+    if (surface.kind === 'ground' || surface.kind === 'barrier') continue
     spawnSurface(surface)
   }
 

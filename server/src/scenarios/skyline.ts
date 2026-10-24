@@ -6,7 +6,7 @@
 
 import { InputBit } from '../../../shared/protocol'
 import type { Track } from '../../../shared/tracks'
-import { approach, BOOST, checkpointAfter, nearestIndex, THROTTLE, type Scenario } from './common'
+import { approach, barrierScenarios, BOOST, checkpointAfter, nearestIndex, THROTTLE, type Scenario } from './common'
 
 export function skylineScenarios(track: Track): Scenario[] {
   const line = track.centreline
@@ -122,6 +122,7 @@ export function skylineScenarios(track: Track): Scenario[] {
       seconds: 2.5,
       bits: InputBit.Thrust,
       requireHeight: roof + 4
-    }
+    },
+    ...barrierScenarios(track)
   ]
 }

@@ -58,7 +58,11 @@ export type TrackDefinition = {
   intro?: Shot[] | ((track: Track) => Shot[])
 }
 
-export type SurfaceKind = 'ground' | 'road' | 'ramp' | 'ceiling' | 'wall' | 'startline' | 'building'
+/**
+ * `barrier` is the low wall along the road's edges: solid for the cars, drawn by the scenery
+ * kit (decor.ts) and not by the track renderer, and no collider for an avatar on foot.
+ */
+export type SurfaceKind = 'ground' | 'road' | 'ramp' | 'ceiling' | 'wall' | 'startline' | 'building' | 'barrier'
 
 export type Surface = {
   kind: SurfaceKind

@@ -43,8 +43,14 @@ export const TRACKSIDE_CLEARANCE = 0.2
 // Mirrors of the generator's private road widths. Only used as a fallback: the real half
 // width at each point is measured off the road boxes.
 const STRAIGHT_HALF = 7.5
-const BARRIER_OFFSET = 1
-const BARRIER_STEP = 4
+/**
+ * Lamps and banners stand outside the barriers, whose face runs 10.3 m off the line in
+ * corners and tapers in to 8.3 m over the first and last 20 m of a straight (the generator's
+ * `edgeAt`; where a barrier restarts after a jump it opens 5 m wider for 30 m).
+ */
+const BARRIER_CLEAR = 12
+/** How much longer each drawn barrier piece is than its share of the box. */
+const BARRIER_OVERLAP = 0.3
 const KERB_STEP = 6
 const CHEVRON_STEP = 12
 const LAMP_STEP = 30
@@ -267,7 +273,7 @@ export function layoutDecor(track: Track, manifest: KitManifest): Placed[] {
   const pushAt = (piece: string, x: number, z: number, yaw: number, y: number, scale: [number, number, number], group: number): void => {
     const entry = manifest[piece]
     if (!entry) return
-    out.push({ piece, x, y, z, yaw, sx: scale[0], sy: scale[1], sz: scale[2], tris: entry.tris, group, near: false, kind: 'trackside' })
+    out.push({ piece, x, y, z, yaw, sx: scale[0], sy: scale[1], sz: scale[2], tris: entry.tris, group, near: NEAR_ONLY.indexOf(piece) !== -1, kind: 'trackside' })
   }
 
   /** A point `across` metres to the right of the line at `p` (negative: left). */
@@ -314,13 +320,6 @@ export function layoutDecor(track: Track, manifest: KitManifest): Placed[] {
     const corner = isCorner(k)
     const yaw = yawOf(p.dx, p.dz)
 
-    if (p.s % BARRIER_STEP === 0) {
-      for (const side of [-1, 1]) {
-        const q = beside(p, side * (half + BARRIER_OFFSET))
-        push('barrier', 'trackside', q.x, q.z, yawOfRight(p.dx, p.dz), g)
-      }
-    }
-
     if (corner) {
       const turn = turnAt(k)
       // A left-hander's inside is on the left.
@@ -340,12 +339,12 @@ export function layoutDecor(track: Track, manifest: KitManifest): Placed[] {
       if (p.s % LAMP_STEP === 0) {
         // Alternate sides from one lamp to the next; the arm (+Z) reaches over the road.
         const side = Math.round(p.s / LAMP_STEP) % 2 === 0 ? 1 : -1
-        const q = beside(p, side * (half + 3))
+        const q = beside(p, side * Math.max(half + 3, BARRIER_CLEAR))
         push('lamp', 'scenery', q.x, q.z, yawOf(-p.dz * side, p.dx * side), g)
       }
       if (inWindow(k, BANNER_RANGE, BANNER_RANGE) && p.s % BANNER_STEP === 0) {
         for (const side of [-1, 1]) {
-          const q = beside(p, side * (half + 3))
+          const q = beside(p, side * Math.max(half + 3, BARRIER_CLEAR))
           // The flag is read from +-X: with the mast beside a road running along Z it faces
           // the road, so it only needs the line's own heading.
           push('banner', 'scenery', q.x, q.z, yaw, g)
@@ -361,6 +360,26 @@ export function layoutDecor(track: Track, manifest: KitManifest): Placed[] {
         // has to be the road.
         const q = beside(p, half + 4 + 3)
         push('stand', 'scenery', q.x, q.z, yawOf(-p.dz, p.dx), g)
+      }
+    }
+  }
+
+  // --- Barriers: the generator's, solid on the server, drawn here -------------
+  // A straight run is one long box, drawn as pieces of about 4 m along it, each scaled to
+  // its share plus a little, so the joints in a corner are covered: the boxes meet at their
+  // road-side faces and open into a thin wedge behind.
+  const barrierSize = manifest['barrier']?.size
+  if (barrierSize) {
+    for (const s of track.surfaces) {
+      if (s.kind !== 'barrier') continue
+      const run = s.size.x
+      const count = Math.max(1, Math.round(run / barrierSize.x))
+      const yaw = (s.rot[1] * Math.PI) / 180
+      for (let j = 0; j < count; j++) {
+        const offset = -run / 2 + ((j + 0.5) * run) / count
+        const x = s.pos.x + Math.cos(yaw) * offset
+        const z = s.pos.z - Math.sin(yaw) * offset
+        pushAt('barrier', x, z, s.rot[1], s.pos.y - s.size.y / 2, [(run / count + BARRIER_OVERLAP) / barrierSize.x, 1, 1], nearestGroup(line, x, z))
       }
     }
   }

@@ -54,6 +54,7 @@ SURFACE_COLOUR = {
     'building': (30, 34, 46),
     'wall': (40, 34, 38),
     'ceiling': (46, 76, 118),
+    'barrier': (150, 40, 44),
 }
 
 

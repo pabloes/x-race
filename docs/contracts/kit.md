@@ -44,10 +44,12 @@ hueco que hoy calcula, de modo que la caja física mide exactamente lo que la pi
 ## Colocación (`scene/src/decor.ts`)
 
 - Determinista a partir del `Track` (mismo xorshift con semilla que los edificios).
-- Barreras a `ROAD_W/2 + 1` m de cada borde de calzada, cada 4 m, en rectas y curvas; pianos
-  en los bordes interiores de curva; chevrones en el exterior de cada curva cada 12 m, mirando
-  en el sentido de giro; pórticos en la meta y en cada control; farolas cada 30 m en rectas,
-  alternando lado; gradas y banderolas en el exterior de la recta principal; árboles en la
+- Barreras: no las coloca la decoración, las genera el circuito (superficies `barrier`, ver
+  tracks.md) y son sólidas en el servidor. `decor.ts` dibuja la pieza `barrier` a lo largo de
+  cada caja, en tramos de unos 4 m que solapan 0,3 m para tapar las juntas de las curvas.
+- Pianos en los bordes interiores de curva; chevrones en el exterior de cada curva cada 12 m,
+  mirando en el sentido de giro; pórticos en la meta y en cada control; farolas cada 30 m en
+  rectas, alternando lado, y banderolas, por fuera de las barreras (al menos a 12 m de la línea); gradas y banderolas en el exterior de la recta principal; árboles en la
   franja libre entre calzada y edificios. Nada a menos de 2 m de una caja de calzada, nada
   sobre rampas, huecos ni losas de techo.
 - Calzada en altura (su cara superior a más de 0,5 m): sin barreras, pianos, chevrones ni
