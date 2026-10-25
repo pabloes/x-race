@@ -57,6 +57,7 @@ const connection = new Connection({
     const drivers = list.filter((p) => !p.spectator)
     hud.pilots = drivers.length
     hud.ready = drivers.filter((p) => p.ready).length
+    hud.racers = drivers.map(({ id, name, ready, bot }) => ({ id, name, ready, bot }))
     setDriverNames(list, connection.playerId)
   },
   onStandings: (list) => {
@@ -222,12 +223,13 @@ function hudSystem(dt: number): void {
     // The room switched circuit: take the old one down and draw the new one. Compared by
     // id rather than on the `track` event, so a player who joins after the switch, or
     // misses the event, still ends up on the circuit the room is racing on.
-    if (isTrackId(race.track) && setActiveTrack(race.track)) {
+    const displayedTrack = race.phase === 'lobby' ? hud.myVote ?? race.track : race.track
+    if (isTrackId(displayedTrack) && setActiveTrack(displayedTrack)) {
       clearTrack()
       buildTrack(activeTrack())
       hud.checkpoints = activeTrack().checkpointCount
-      hud.track = race.track
     }
+    hud.track = race.track
     hud.votes = race.votes ?? {}
     // A vote lives for one lobby, on the server and so here.
     if (race.phase !== 'lobby') hud.myVote = null
@@ -278,6 +280,11 @@ export function main(): void {
   // Highlighted straight away: the server sends no confirmation, only the count.
   menu.vote = (track) => {
     hud.myVote = track
+    if (setActiveTrack(track)) {
+      clearTrack()
+      buildTrack(activeTrack())
+      hud.checkpoints = activeTrack().checkpointCount
+    }
     connection.vote(track)
   }
   menu.start = () => connection.startRace()

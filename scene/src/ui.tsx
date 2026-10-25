@@ -94,6 +94,7 @@ export type HudState = {
   /** Lobby roster: who would drive if the race started now, and how many of them are ready. */
   pilots: number
   ready: number
+  racers: { id: number; name: string; ready: boolean; bot: boolean }[]
   speedKmh: number
   /** Which way your car points, in degrees clockwise from +Z, for the way-back arrow. */
   headingDeg: number
@@ -160,6 +161,7 @@ export const hud: HudState = {
   drivers: 0,
   pilots: 0,
   ready: 0,
+  racers: [],
   speedKmh: 0,
   headingDeg: 0,
   charge: 0,
@@ -699,7 +701,7 @@ function ActionButton(props: { primary: boolean; enabled?: boolean; icon?: strin
  * above the chat field. When that leaves too little height it scrolls; on a narrow window
  * it spans the width and scales up with it (see `lobbyScale`).
  */
-function LobbyCard() {
+function LegacyLobbyCard() {
   const inLobby = hud.phase === 'lobby'
   if (!inLobby && !hud.spectator) return null
 
@@ -709,7 +711,7 @@ function LobbyCard() {
   if (hud.spectator && !hud.wasSpectator) hud.menuMinimised = true
   hud.wasSpectator = hud.spectator
 
-  if (isMobile()) return <MobileLobby />
+  if (isMobile()) return <LobbyDashboard />
 
   const visibleLeft = insetLeft()
   // Under the logo and the explorer's top margin; in preview on a narrow window the card
@@ -860,81 +862,205 @@ function LobbyCard() {
 }
 
 /** Mobile rows use the free middle of the screen so every choice remains a finger-sized target. */
-function MobileLobby() {
-  const g = gridScale()
-  const text = (value: string, size = 14) => <Label value={value} fontSize={size * g} color={INK} textAlign="middle-center" textWrap="nowrap" />
-  const button = (label: string, width: number, onClick: () => void, selected = false, enabled = true) => (
-    <UiEntity key={label} uiTransform={{ width: width * g, height: 44 * g, justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}
-      uiBackground={{ color: selected ? rgb(0x13748d) : WELL }} onMouseDown={enabled ? onClick : undefined}>
-      {text(label, 16)}
-    </UiEntity>
-  )
-  const box = (x: number, y: number, w: number, h: number) => {
-    const b = gridBox(x, y, w, h)
-    return { positionType: 'absolute' as const, position: { left: b.left, top: b.top }, width: b.width, height: b.height }
+type DashboardLayout = { left: number; top: number; scale: number }
+
+function dashboardLayout(): DashboardLayout {
+  if (isMobile()) {
+    const g = gridScale()
+    const scale = 0.505 * g
+    // Centred on the whole canvas by the dashboard's rendered width, so the layout cannot
+    // drift off a side whatever the aspect ratio.
+    return { left: (screen.width - 1000 * scale) / 2, top: 16 * g, scale }
   }
-  if (hud.menuMinimised) return (
-    <UiEntity uiTransform={box(140, 4, 136, 44)} uiBackground={{ color: WELL }} onMouseDown={() => { hud.menuMinimised = false }}>
-      {text('MENU', 20)}
-    </UiEntity>
-  )
+  const leftEdge = Math.max(EDGE, screen.area.left + AREA_MARGIN)
+  const rightEdge = Math.max(EDGE, screen.area.right + AREA_MARGIN)
+  const topEdge = Math.max(EDGE, screen.area.top + AREA_MARGIN)
+  const bottomEdge = Math.max(EDGE, screen.area.bottom + AREA_MARGIN)
+  const scale = Math.min((screen.width - leftEdge - rightEdge) / 1000, (screen.height - topEdge - bottomEdge) / 600)
+  return {
+    left: leftEdge + (screen.width - leftEdge - rightEdge - 1000 * scale) / 2,
+    top: topEdge + (screen.height - topEdge - bottomEdge - 600 * scale) / 2,
+    scale
+  }
+}
+
+function LobbyDashboard() {
+  const layout = dashboardLayout()
+  const s = layout.scale
   const shown = hud.myVote ?? hud.track
-  const index = TRACK_IDS.indexOf(shown)
+  const index = Math.max(0, TRACK_IDS.indexOf(shown))
   const track = trackById(shown)
   const face = TRACK_CARDS[shown]
+  const box = (x: number, y: number, w: number, h: number) => ({
+    positionType: 'absolute' as const,
+    position: { left: layout.left + x * s, top: layout.top + y * s },
+    width: w * s,
+    height: h * s
+  })
+  const label = (value: string, size: number, color = INK, align: 'middle-left' | 'middle-center' | 'middle-right' = 'middle-center') => (
+    <Label value={value} fontSize={size * s} color={color} textAlign={align} textWrap="nowrap" />
+  )
+  const iconButton = (name: string, onClick: () => void) => (
+    <UiEntity uiTransform={{ width: 58 * s, height: '100%', justifyContent: 'center', alignItems: 'center', flexShrink: 0 }} onMouseDown={onClick}>
+      <Icon name={name} size={28 * s} />
+    </UiEntity>
+  )
+  const stepper = (title: string, value: number, down: () => void, up: () => void) => (
+    <UiEntity uiTransform={{ width: '100%', height: 82 * s, flexDirection: 'column', margin: { top: 8 * s } }}>
+      {label(title, 19, INK, 'middle-left')}
+      <UiEntity uiTransform={{ width: '100%', flexGrow: 1, flexDirection: 'row', alignItems: 'center' }} uiBackground={BG_OFF}>
+        <UiEntity uiTransform={{ width: 62 * s, height: '100%', justifyContent: 'center', alignItems: 'center' }} onMouseDown={down}>{label('−', 28, ACCENT)}</UiEntity>
+        <UiEntity uiTransform={{ flexGrow: 1, height: '100%', justifyContent: 'center', alignItems: 'center' }}>{label(String(value), 27)}</UiEntity>
+        <UiEntity uiTransform={{ width: 62 * s, height: '100%', justifyContent: 'center', alignItems: 'center' }} onMouseDown={up}>{label('+', 28, ACCENT)}</UiEntity>
+      </UiEntity>
+    </UiEntity>
+  )
+  const mode = (value: RaceMode, icon: string, title: string) => (
+    <UiEntity uiTransform={{ width: '50%', height: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}
+      uiBackground={hud.mode === value ? BG_ON : BG_OFF} onMouseDown={() => menu.setMode(value)}>
+      <Icon name={icon} size={25 * s} margin={9 * s} />
+      {label(title, 20)}
+    </UiEntity>
+  )
+  if (hud.menuMinimised) return (
+    <UiEntity uiTransform={box(0, 0, 190, 58)} uiBackground={BG_TAG} onMouseDown={() => { hud.menuMinimised = false }}>
+      <UiEntity uiTransform={{ width: '100%', height: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}>
+        <Icon name="flag" size={24 * s} margin={10 * s} />{label('RACE MENU', 20)}
+      </UiEntity>
+    </UiEntity>
+  )
+  const racers = hud.racers.slice(0, 4)
+  const open = Math.max(0, RACE.maxPlayers - hud.racers.length)
+  const hidden = Math.max(0, hud.racers.length - racers.length)
+  const startLabel = hud.spectator ? 'DRIVE' : hud.joining ? `DOORS OPEN · ${Math.max(0, Math.ceil(hud.phaseMs / 1000))}` : 'START RACE'
+  const startEnabled = hud.spectator || (hud.phase === 'lobby' && !hud.joining)
+  // On a phone the setup panel ends above the explorer's joystick, which sits at the bottom left.
+  const setupHeight = isMobile() ? 360 : 390
+  const plan = MINIMAPS[shown]
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', width: '100%', height: '100%' }}>
-      <UiEntity uiTransform={{ ...box(140, 32, 515, 48), flexDirection: 'row', alignItems: 'center' }} uiBackground={{ color: WELL }}>
-        {button('<', 44, () => menu.vote(TRACK_IDS[(index + TRACK_IDS.length - 1) % TRACK_IDS.length]))}
-        <UiEntity uiTransform={{ flexGrow: 1, height: '100%', justifyContent: 'center', flexDirection: 'column' }}
-          uiBackground={face !== undefined ? image(face.thumb) : { color: WELL }} onMouseDown={() => menu.vote(shown)}>
-          {text(track.name, 24)}
-          {text(`${(track.lapLength / 1000).toFixed(1)} km · ${hud.myVote === shown ? 'YOUR VOTE' : 'TAP TO VOTE'} · ${hud.votes[shown] ?? 0} votes`)}
+      <UiEntity uiTransform={{ ...box(0, 0, 1000, 88), flexDirection: 'row', alignItems: 'center', padding: { left: 26 * s, right: 18 * s } }} uiBackground={BG_LOBBY}>
+        <UiEntity uiTransform={{ width: 340 * s, height: 76 * s }} uiBackground={BG_LOGO} />
+        <UiEntity uiTransform={{ flexGrow: 1 }} />
+        <UiEntity uiTransform={{ height: 54 * s, padding: { left: 18 * s, right: 18 * s }, flexDirection: 'row', alignItems: 'center' }} uiBackground={BG_OUTLINE}>
+          <UiEntity uiTransform={{ width: 12 * s, height: 12 * s, margin: { right: 10 * s } }} uiBackground={{ color: hud.connected ? GOOD : PINK }} />
+          {label(hud.connected ? `ONLINE · ${Math.round(hud.pingMs)} MS` : 'OFFLINE', 18)}
         </UiEntity>
-        {button('>', 44, () => menu.vote(TRACK_IDS[(index + 1) % TRACK_IDS.length]))}
+        <UiEntity uiTransform={{ width: 64 * s, height: 64 * s, margin: { left: 14 * s }, justifyContent: 'center', alignItems: 'center' }} uiBackground={BG_OUTLINE} onMouseDown={() => { hud.menuMinimised = true }}>
+          {label('×', 42)}
+        </UiEntity>
       </UiEntity>
-      <UiEntity uiTransform={{ ...box(12, 88, 643, 60), flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }} uiBackground={{ color: WELL }}>
-        {text('GAME MODE', 20)}
-        {button('SOLO', 184, () => menu.setMode('solo'), hud.mode === 'solo')}
-        {button('MULTI', 184, () => menu.setMode('multiplayer'), hud.mode === 'multiplayer')}
+
+      <UiEntity uiTransform={{ ...box(0, 94, 235, setupHeight), flexDirection: 'column', padding: 18 * s }} uiBackground={BG_LOBBY}>
+        {label('RACE SETUP', 25, INK, 'middle-left')}
+        <UiEntity uiTransform={{ width: '100%', height: 66 * s, flexDirection: 'row', margin: { top: 16 * s } }}>
+          {mode('solo', 'person', 'SOLO')}{mode('multiplayer', 'people', 'MULTI')}
+        </UiEntity>
+        {stepper('BOTS', hud.bots, () => menu.setBots(hud.bots - 1), () => menu.setBots(hud.bots + 1))}
+        {stepper('LAPS', hud.laps, () => menu.setLaps(Math.max(1, hud.laps - 2)), () => menu.setLaps(Math.min(5, hud.laps + 2)))}
       </UiEntity>
-      <UiEntity uiTransform={{ ...box(12, 156, 643, 60), flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }} uiBackground={{ color: WELL }}>
-        {text('BOTS', 20)}
-        {button('−', 44, () => menu.setBots(hud.bots - 1))}
-        {text(String(hud.bots), 20)}
-        {button('+', 44, () => menu.setBots(hud.bots + 1))}
-        {text('LAPS', 20)}
-        {[1, 3, 5].map(laps => button(String(laps), 64, () => menu.setLaps(laps), hud.laps === laps))}
+
+      <UiEntity uiTransform={{ ...box(243, 94, 515, 390), flexDirection: 'column' }} uiBackground={BG_CARD}>
+        <UiEntity uiTransform={{ width: '100%', flexGrow: 1, flexDirection: 'row', alignItems: 'center' }} uiBackground={face !== undefined ? image(face.thumb) : { color: WELL }}>
+          {iconButton('left', () => menu.vote(TRACK_IDS[(index + TRACK_IDS.length - 1) % TRACK_IDS.length]))}
+          <UiEntity uiTransform={{ flexGrow: 1 }} />
+          {iconButton('right', () => menu.vote(TRACK_IDS[(index + 1) % TRACK_IDS.length]))}
+          {plan !== undefined ? (
+            // The circuit plan follows the carousel's selection, between the arrows and clear of the vote chips and the name plate.
+            <UiEntity uiTransform={{ positionType: 'absolute', position: { left: (515 - 190) / 2 * s, top: 56 * s }, width: 190 * s, height: 190 * s, padding: 6 * s }} uiBackground={{ color: rgb(0x020817, 0.6) }}>
+              <UiEntity uiTransform={{ width: '100%', height: '100%' }} uiBackground={image(plan)} />
+            </UiEntity>
+          ) : null}
+          <UiEntity uiTransform={{ positionType: 'absolute', position: { right: 18 * s, top: 14 * s }, flexDirection: 'row' }}>
+            {TRACK_IDS.map((id) => <UiEntity key={id} uiTransform={{ padding: { left: 9 * s, right: 9 * s, top: 5 * s, bottom: 5 * s }, margin: { left: 6 * s } }} uiBackground={id === shown ? BG_ON : BG_OFF}>{label(`${trackById(id).name} ${hud.votes[id] ?? 0}`, 12)}</UiEntity>)}
+          </UiEntity>
+          <UiEntity uiTransform={{ positionType: 'absolute', position: { left: 0, bottom: 0 }, width: '100%', height: 112 * s, flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }} uiBackground={{ color: rgb(0x020817, 0.82) }} onMouseDown={() => menu.vote(shown)}>
+            {label(track.name, 40)}
+            {label(`${(track.lapLength / 1000).toFixed(1)} KM · ${face?.blurb ?? 'RACE CIRCUIT'}`, 15, MUTED)}
+            {label(hud.myVote === shown ? '✓ YOUR VOTE' : 'TAP TO VOTE', 15, hud.myVote === shown ? PINK : ACCENT)}
+          </UiEntity>
+        </UiEntity>
       </UiEntity>
-      <UiEntity uiTransform={{ ...box(152, 224, 346, 140), flexDirection: 'column', justifyContent: 'space-between' }}>
-        {text(`${hud.pilots} DRIVERS · ${hud.ready} READY`)}
-        {button(hud.spectator ? 'DRIVE' : hud.joining ? `DOORS OPEN · ${Math.max(0, Math.ceil(hud.phaseMs / 1000))}` : 'START RACE', 346,
-          () => { if (hud.spectator) { menu.setSpectator(false); hud.menuMinimised = false } else menu.start() }, true,
-          hud.spectator || (hud.phase === 'lobby' && !hud.joining))}
-        {button(hud.spectator ? 'HIDE MENU' : 'SPECTATE', 346, () => { if (!hud.spectator) menu.setSpectator(true); hud.menuMinimised = true })}
+
+      <UiEntity uiTransform={{ ...box(766, 94, 234, 330), flexDirection: 'column', padding: 16 * s }} uiBackground={BG_LOBBY}>
+        {label(`RACERS  ${hud.racers.length}/${RACE.maxPlayers}`, 24, INK, 'middle-left')}
+        <UiEntity uiTransform={{ width: '100%', height: 6 * s }} />
+        {racers.map((racer) => (
+          <UiEntity key={String(racer.id)} uiTransform={{ width: '100%', height: 44 * s, flexDirection: 'row', alignItems: 'center', padding: { left: 8 * s, right: 8 * s } }} uiBackground={BG_PLAIN}>
+            <Icon name={racer.bot ? 'robot' : 'person'} size={26 * s} margin={9 * s} />
+            <Label value={short(racer.name, 12)} fontSize={16 * s} color={INK} textAlign="middle-left" textWrap="nowrap" uiTransform={{ flexGrow: 1 }} />
+            {label(racer.bot ? 'BOT' : racer.ready ? 'READY' : 'NOT READY', 11, racer.ready || racer.bot ? GOOD : MUTED, 'middle-right')}
+          </UiEntity>
+        ))}
+        {hidden > 0 || open > 0 ? <UiEntity uiTransform={{ width: '100%', height: 38 * s, flexDirection: 'row', alignItems: 'center', padding: { left: 10 * s } }} uiBackground={BG_PLAIN}><Label value={hidden > 0 ? `+ ${hidden} MORE · ${open} OPEN` : `+ ${open} OPEN SLOTS`} fontSize={13 * s} color={CAPTION} textAlign="middle-left" textWrap="nowrap" /></UiEntity> : null}
+      </UiEntity>
+
+      <UiEntity uiTransform={{ ...box(243, 492, 515, 82), flexDirection: 'row' }}>
+        <UiEntity uiTransform={{ flexGrow: 1, height: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }} uiBackground={startEnabled ? BG_GO : BG_OFF}
+          onMouseDown={startEnabled ? () => { if (hud.spectator) { menu.setSpectator(false); hud.menuMinimised = false } else menu.start() } : undefined}>
+          <Icon name="play" size={27 * s} margin={13 * s} />{label(startLabel, 28, startEnabled ? ON_GREEN : MUTED)}
+        </UiEntity>
+        <UiEntity uiTransform={{ width: 145 * s, height: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }} uiBackground={BG_OUTLINE}
+          onMouseDown={() => { if (!hud.spectator) menu.setSpectator(true); hud.menuMinimised = true }}>
+          <Icon name="eye" size={24 * s} margin={8 * s} />{label(hud.spectator ? 'HIDE' : 'SPECTATE', 16)}
+        </UiEntity>
       </UiEntity>
     </UiEntity>
   )
 }
 
-/** The mobile race card trades the map for legible figures and three nearby drivers. */
+function LobbyCard() {
+  const inLobby = hud.phase === 'lobby'
+  if (!inLobby && !hud.spectator) return null
+  if (hud.spectator && !hud.wasSpectator) hud.menuMinimised = true
+  hud.wasSpectator = hud.spectator
+  return <LobbyDashboard />
+}
+
+/**
+ * The phone's race HUD, a narrow column at the top right between the explorer's right-hand
+ * buttons (y > 232) and the connection line above it: the four figures, the circuit map and
+ * the three nearest drivers, each as small as it can be read. Once the race is over the map
+ * gives way to the results, wider and without a scrollbar.
+ */
 function MobileRaceCard() {
   const g = gridScale()
-  const b = gridBox(292, 54, 363, 170)
+  const finished = hud.phase === 'finished'
+  const b = finished ? gridBox(447, 24, 214, 0) : gridBox(533, 24, 128, 0)
+  const figures = [
+    ['LAP', `${Math.min(hud.lap + 1, hud.laps)}/${hud.laps}`],
+    ['POS', `${hud.rank}/${Math.max(1, hud.drivers)}`],
+    ['CP', `${hud.checkpoint}/${hud.checkpoints}`],
+    ['TIME', formatTime(hud.raceTimeMs)]
+  ]
   return (
-    <UiEntity uiTransform={{ positionType: 'absolute', position: { left: b.left, top: b.top }, width: b.width, height: b.height, padding: 8 * g, flexDirection: 'column' }} uiBackground={{ color: WELL }}>
-      <UiEntity uiTransform={{ width: '100%', height: 50 * g, flexDirection: 'row', justifyContent: 'space-between' }}>
-        {[
-          ['LAP', `${Math.min(hud.lap + 1, hud.laps)}/${hud.laps}`],
-          ['POS', `${hud.rank}/${Math.max(1, hud.drivers)}`],
-          ['CP', `${hud.checkpoint}/${hud.checkpoints}`],
-          ['TIME', formatTime(hud.raceTimeMs)]
-        ].map(([label, value]) => <UiEntity key={label} uiTransform={{ flexDirection: 'column' }}>
-          <Label value={label} fontSize={14 * g} color={CAPTION} />
-          <Label value={value} fontSize={18 * g} color={INK} />
-        </UiEntity>)}
-      </UiEntity>
-      {hud.phase === 'finished' ? <UiEntity uiTransform={{ width: '100%', flexGrow: 1, overflow: 'scroll', flexDirection: 'column' }}><Results /></UiEntity> : <Standings />}
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { left: b.left, top: b.top }, width: b.width, flexDirection: 'column' }}>
+      {finished ? (
+        <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', padding: 4 * g }} uiBackground={{ color: WELL }}>
+          <Results />
+        </UiEntity>
+      ) : (
+        <UiEntity uiTransform={{ width: '100%', flexDirection: 'column' }}>
+          <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', padding: 4 * g }} uiBackground={{ color: WELL }}>
+            {[figures.slice(0, 2), figures.slice(2)].map((row, i) => (
+              <UiEntity key={String(i)} uiTransform={{ width: '100%', flexDirection: 'row' }}>
+                {row.map(([label, value]) => (
+                  <UiEntity key={label} uiTransform={{ width: '50%', height: 22 * g, flexDirection: 'column' }}>
+                    <Label value={label} fontSize={7 * g} color={CAPTION} textAlign="middle-left" textWrap="nowrap" />
+                    <Label value={value} fontSize={12 * g} color={label === 'TIME' ? ACCENT : INK} textAlign="middle-left" textWrap="nowrap" />
+                  </UiEntity>
+                ))}
+              </UiEntity>
+            ))}
+          </UiEntity>
+          <UiEntity uiTransform={{ width: '100%', margin: { top: 3 * g } }}>
+            <Minimap size={84 * g} well={b.width} unit={Math.max(1, 0.6 * g)} />
+          </UiEntity>
+          <UiEntity uiTransform={{ width: '100%', margin: { top: 3 * g } }}>
+            <Standings />
+          </UiEntity>
+        </UiEntity>
+      )}
     </UiEntity>
   )
 }
@@ -955,11 +1081,13 @@ function MobileRaceCard() {
  * are mandatory and in order, so the useful thing to draw is the next one and its number,
  * not all twelve. It is cyan, because orange on this map means your car.
  */
-function Minimap(props: { size: number; well: number }) {
+function Minimap(props: { size: number; well: number; unit?: number }) {
   const next = hud.nextCheckpoint
   const extent = activeTrack().extent
   const plate = MINIMAPS[hud.track]
   const size = props.size
+  // Scales the letters and markers; the phone's map is small, so it asks for a little more.
+  const k = props.unit ?? 1
   // The label sits to the right of the marker, except near the right edge, where it would
   // run off the plate and be clipped.
   const nextLeft = next ? (next.x / extent) * size : 0
@@ -972,7 +1100,7 @@ function Minimap(props: { size: number; well: number }) {
     >
       <Label
         value="N"
-        fontSize={16}
+        fontSize={16 * k}
         color={ACCENT}
         uiTransform={{ positionType: 'absolute', position: { left: 10, top: 6 } }}
       />
@@ -984,9 +1112,9 @@ function Minimap(props: { size: number; well: number }) {
           <UiEntity
             uiTransform={{
               positionType: 'absolute',
-              position: { left: nextLeft - 6, top: nextTop - 6 },
-              width: 12,
-              height: 12,
+              position: { left: nextLeft - 6 * k, top: nextTop - 6 * k },
+              width: 12 * k,
+              height: 12 * k,
               justifyContent: 'center',
               alignItems: 'center'
             }}
@@ -995,18 +1123,18 @@ function Minimap(props: { size: number; well: number }) {
             <UiEntity
               uiTransform={{
                 positionType: 'absolute',
-                position: labelOnLeft ? { left: -46, top: -3 } : { left: 15, top: -3 },
-                width: 44,
-                height: 16,
+                position: labelOnLeft ? { left: -46 * k, top: -3 * k } : { left: 15 * k, top: -3 * k },
+                width: 44 * k,
+                height: 16 * k,
                 justifyContent: labelOnLeft ? 'flex-end' : 'flex-start'
               }}
             >
-              <Label value={next.label} fontSize={12} color={ACCENT} textAlign="middle-center" />
+              <Label value={next.label} fontSize={12 * k} color={ACCENT} textAlign="middle-center" />
             </UiEntity>
           </UiEntity>
         ) : null}
         {hud.blips.map((blip) => {
-          const dot = blip.mine ? 11 : 8
+          const dot = (blip.mine ? 11 : 8) * k
           return (
             <UiEntity
               key={blip.id}
@@ -1103,7 +1231,9 @@ function RaceCard() {
 /** One row of the standings; yours is the orange one. */
 function StandingRow(props: { key?: string; s: Standing; mine: boolean; big: boolean }) {
   const s = props.s
-  const size = isMobile() ? 14 * gridScale() : props.big ? 19 : 13
+  const mobile = isMobile()
+  const g = gridScale()
+  const size = mobile ? (props.big ? 10 : 9) * g : props.big ? 19 : 13
   // No time gaps on the wire yet, so the race list says what it can: you, a finishing
   // time, or the lap the others are on.
   const right = props.mine && !props.big ? 'YOU' : s.finished ? formatTime(s.totalMs) : `L${s.lap + 1}`
@@ -1111,10 +1241,10 @@ function StandingRow(props: { key?: string; s: Standing; mine: boolean; big: boo
     <UiEntity
       uiTransform={{
         width: '100%',
-        height: size + (props.big ? 14 : 7),
+        height: size + (mobile ? 4 * g : props.big ? 14 : 7),
         flexDirection: 'row',
         alignItems: 'center',
-        padding: { left: props.big ? 10 : 8, right: 6 }
+        padding: mobile ? { left: 5 * g, right: 3 * g } : { left: props.big ? 10 : 8, right: 6 }
       }}
       uiBackground={props.mine ? { color: rgb(0xf59e0b, 0.18) } : undefined}
     >
@@ -1129,10 +1259,10 @@ function StandingRow(props: { key?: string; s: Standing; mine: boolean; big: boo
         fontSize={size}
         color={props.mine ? YOU : CAPTION}
         textAlign="middle-left"
-        uiTransform={{ width: isMobile() ? 24 * gridScale() : props.big ? 30 : 20 }}
+        uiTransform={{ width: mobile ? 12 * g : props.big ? 30 : 20 }}
       />
       <Label
-        value={short(s.name, props.big ? 20 : 16)}
+        value={short(s.name, mobile ? (props.big ? 16 : 11) : props.big ? 20 : 16)}
         fontSize={size}
         color={INK}
         textAlign="middle-left"
@@ -1140,7 +1270,7 @@ function StandingRow(props: { key?: string; s: Standing; mine: boolean; big: boo
         uiTransform={{ flexGrow: 1 }}
       />
       {props.big ? (
-        <Label value={`${s.score}`} fontSize={size - 3} color={CAPTION} textAlign="middle-right" uiTransform={{ width: 70 }} />
+        <Label value={`${s.score}`} fontSize={size - 3} color={CAPTION} textAlign="middle-right" uiTransform={{ width: mobile ? 22 * g : 70 }} />
       ) : null}
       <Label
         value={right}
@@ -1148,7 +1278,7 @@ function StandingRow(props: { key?: string; s: Standing; mine: boolean; big: boo
         color={props.mine ? INK : MUTED}
         textAlign="middle-right"
         textWrap="nowrap"
-        uiTransform={{ width: isMobile() ? 80 * gridScale() : props.big ? 110 : 64 }}
+        uiTransform={{ width: mobile ? 40 * g : props.big ? 110 : 64 }}
       />
     </UiEntity>
   )
@@ -1157,14 +1287,16 @@ function StandingRow(props: { key?: string; s: Standing; mine: boolean; big: boo
 /** When the race is over the card is the results: bigger, and nothing else beside it. */
 function Results() {
   const myId = myCarId()
+  const mobile = isMobile()
+  const g = gridScale()
   return (
     <UiEntity uiTransform={{ width: '100%', flexDirection: 'column' }}>
-      <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', alignItems: 'center', margin: { bottom: 10 } }}>
-        <Label value="RESULTS" fontSize={24} color={INK} textAlign="middle-left" uiTransform={{ flexGrow: 1 }} />
-        <Label value="PTS" fontSize={12} color={CAPTION} textAlign="middle-right" uiTransform={{ width: 70 }} />
-        <Label value="TIME" fontSize={12} color={CAPTION} textAlign="middle-right" uiTransform={{ width: 118 }} />
+      <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', alignItems: 'center', margin: { bottom: mobile ? 3 * g : 10 }, padding: mobile ? { left: 5 * g, right: 3 * g } : undefined }}>
+        <Label value="RESULTS" fontSize={mobile ? 12 * g : 24} color={INK} textAlign="middle-left" uiTransform={{ flexGrow: 1 }} />
+        <Label value="PTS" fontSize={mobile ? 7 * g : 12} color={CAPTION} textAlign="middle-right" uiTransform={{ width: mobile ? 22 * g : 70 }} />
+        <Label value="TIME" fontSize={mobile ? 7 * g : 12} color={CAPTION} textAlign="middle-right" uiTransform={{ width: mobile ? 40 * g : 118 }} />
       </UiEntity>
-      {hud.standings.slice(0, 8).map((s) => (
+      {hud.standings.slice(0, mobile ? 6 : 8).map((s) => (
         <StandingRow key={String(s.id)} s={s} mine={s.id === myId} big />
       ))}
     </UiEntity>
@@ -1226,10 +1358,10 @@ function Standings() {
       uiTransform={{
         width: isMobile() ? '100%' : RACE_CARD_WIDTH + 4,
         flexDirection: 'column',
-        padding: { left: 6, right: 8, top: 6, bottom: 6 },
-        margin: { right: FRAME_GLOW - 2, top: 2 }
+        padding: isMobile() ? 2 * gridScale() : { left: 6, right: 8, top: 6, bottom: 6 },
+        margin: isMobile() ? 0 : { right: FRAME_GLOW - 2, top: 2 }
       }}
-      uiBackground={BG_SOFT}
+      uiBackground={isMobile() ? { color: WELL } : BG_SOFT}
     >
       {sorted.slice(first, first + 3).map((s) => (
         <StandingRow key={String(s.id)} s={s} mine={s.id === myId} big={false} />
@@ -1269,14 +1401,14 @@ function LeaveTag() {
         positionType: 'absolute',
         // Inside the free area, beside the explorer's scene panel rather than under it.
         position: isMobile() ? { left: 140 * gridScale(), top: 4 * gridScale() } : { left: insetLeft() - 2, top: insetTop() },
-        height: isMobile() ? 44 * gridScale() : 40,
+        height: isMobile() ? 24 * gridScale() : 40,
         justifyContent: 'center',
-        padding: { left: 16, right: 20 }
+        padding: isMobile() ? { left: 8 * gridScale(), right: 10 * gridScale() } : { left: 16, right: 20 }
       }}
       uiBackground={BG_TAG}
       onMouseDown={() => menu.leaveRace()}
     >
-      <Label value="LEAVE RACE" fontSize={isMobile() ? 14 * gridScale() : 14} color={INK} textAlign="middle-center" textWrap="nowrap" />
+      <Label value="LEAVE RACE" fontSize={isMobile() ? 9 * gridScale() : 14} color={INK} textAlign="middle-center" textWrap="nowrap" />
     </UiEntity>
   )
 }
@@ -1444,8 +1576,8 @@ function BoostLamp() {
   return (
     <UiEntity
       uiTransform={{
-        width: isMobile() ? 64 * gridScale() : 104 + 2 * FRAME_GLOW,
-        height: isMobile() ? 44 * gridScale() : 81 + 2 * FRAME_GLOW,
+        width: 104 + 2 * FRAME_GLOW,
+        height: 81 + 2 * FRAME_GLOW,
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
@@ -1469,6 +1601,7 @@ function BoostLamp() {
 /** Speed, the speed bar, charge, and the state of the car's two forms of thrust. */
 function Speedometer() {
   if (!inRace() || hud.spectator) return null
+  if (isMobile()) return <MobileSpeedometer />
   const thrusting = (hud.flags & CarFlag.Thrusting) !== 0
   const inverted = (hud.flags & CarFlag.Inverted) !== 0
   const airborne = (hud.flags & CarFlag.Airborne) !== 0
@@ -1481,7 +1614,7 @@ function Speedometer() {
     : inverted
       ? 'INVERTED · gravity flipped'
       : airborne
-        ? isMobile() ? 'AIRBORNE' : 'SPACE thrusters · E barrel roll'
+        ? 'SPACE thrusters · E barrel roll'
         : ''
   const segments: ReactEcs.JSX.Element[] = []
   for (let i = 0; i < SPEED_SEGMENTS; i++) {
@@ -1493,19 +1626,15 @@ function Speedometer() {
       />
     )
   }
-  // Down on the bottom edge. On desktop it starts right of the rail and keeps above
-  // whatever the explorer reports at the bottom; on a phone it is centred in the gap
-  // between the joystick and the explorer's button cluster.
-  const g = gridScale()
-  const position = isMobile()
-    ? { left: 152 * g, bottom: 8 * g }
-    : { left: insetLeft() - FRAME_GLOW, bottom: Math.max(12, screen.area.bottom + 12) - FRAME_GLOW }
+  // Down on the bottom edge, starting right of the rail and keeping above whatever the
+  // explorer reports at the bottom.
+  const position = { left: insetLeft() - FRAME_GLOW, bottom: Math.max(12, screen.area.bottom + 12) - FRAME_GLOW }
   return (
     <UiEntity
       uiTransform={{
         positionType: 'absolute',
         position,
-        width: isMobile() ? 264 * g : 'auto',
+        width: 'auto',
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'flex-end'
@@ -1513,7 +1642,7 @@ function Speedometer() {
     >
       <UiEntity
         uiTransform={{
-          width: isMobile() ? 264 * g : SPEED_WIDTH + 2 * FRAME_GLOW,
+          width: SPEED_WIDTH + 2 * FRAME_GLOW,
           flexDirection: 'column',
           padding: { left: FRAME_GLOW + 22, right: FRAME_GLOW + 22, top: FRAME_GLOW + 12, bottom: FRAME_GLOW + 16 }
         }}
@@ -1522,20 +1651,19 @@ function Speedometer() {
         <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'flex-end', margin: { bottom: 8 } }}>
           <Label
             value={String(Math.round(hud.speedKmh))}
-            fontSize={isMobile() ? 32 * g : 68}
+            fontSize={68}
             color={INK}
             textAlign="bottom-left"
             textWrap="nowrap"
           />
           <Label
             value="km/h"
-            fontSize={isMobile() ? 14 * g : 18}
+            fontSize={18}
             color={MUTED}
             textAlign="bottom-left"
             textWrap="nowrap"
             uiTransform={{ margin: { left: 10, bottom: 10 } }}
           />
-          {isMobile() ? <BoostLamp /> : null}
         </UiEntity>
         <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', margin: { bottom: 12 } }}>{segments}</UiEntity>
         <UiEntity uiTransform={{ width: '100%', height: 20, flexDirection: 'row', alignItems: 'center' }}>
@@ -1548,11 +1676,11 @@ function Speedometer() {
           </UiEntity>
           <Label
             value={`CHARGE ${Math.round(charge * 100)}%`}
-            fontSize={isMobile() ? 14 * g : 12}
+            fontSize={12}
             color={MUTED}
             textAlign="middle-right"
             textWrap="nowrap"
-            uiTransform={{ width: isMobile() ? 112 * g : 100 }}
+            uiTransform={{ width: 100 }}
           />
         </UiEntity>
         {note !== '' ? (
@@ -1566,7 +1694,77 @@ function Speedometer() {
           />
         ) : null}
       </UiEntity>
-      {isMobile() ? null : <BoostLamp />}
+      <BoostLamp />
+    </UiEntity>
+  )
+}
+
+/**
+ * The phone's speed block: the number, a thin speed bar and a thin charge bar in one small
+ * strip on the bottom edge, between the explorer's joystick and the brake. The boost lamp is
+ * a lit square beside the number that only exists while boosting or asking for it, and the
+ * note is kept for the two states the driver has to act on.
+ */
+function MobileSpeedometer() {
+  const g = gridScale()
+  const on = (hud.flags & CarFlag.Boosting) !== 0
+  const asking = hud.boostRequested
+  const thrusting = (hud.flags & CarFlag.Thrusting) !== 0
+  const inverted = (hud.flags & CarFlag.Inverted) !== 0
+  const lit = Math.round(Math.min(1, hud.speedKmh / SPEED_BAR_FULL) * SPEED_SEGMENTS)
+  const charge = Math.max(0, Math.min(1, hud.charge))
+  const empty = hud.charge <= CHARGE.boostFloor
+  const segments: ReactEcs.JSX.Element[] = []
+  for (let i = 0; i < SPEED_SEGMENTS; i++) {
+    segments.push(
+      <UiEntity
+        key={String(i)}
+        uiTransform={{ flexGrow: 1, flexBasis: 0, height: 4 * g, margin: { right: i < SPEED_SEGMENTS - 1 ? 1.5 * g : 0 } }}
+        uiBackground={i < lit ? BG_SEG_ON : BG_SEG_OFF}
+      />
+    )
+  }
+  const b = gridBox(160, 0, 200, 0)
+  return (
+    <UiEntity
+      uiTransform={{
+        positionType: 'absolute',
+        position: { left: b.left, bottom: 6 * g },
+        width: b.width,
+        flexDirection: 'column',
+        padding: 5 * g
+      }}
+      uiBackground={{ color: WELL }}
+    >
+      <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', alignItems: 'flex-end', margin: { bottom: 3 * g } }}>
+        <Label value={String(Math.round(hud.speedKmh))} fontSize={24 * g} color={INK} textAlign="bottom-left" textWrap="nowrap" />
+        <Label value="km/h" fontSize={9 * g} color={MUTED} textAlign="bottom-left" textWrap="nowrap" uiTransform={{ margin: { left: 4 * g, bottom: 3 * g } }} />
+        <UiEntity uiTransform={{ flexGrow: 1 }} />
+        {thrusting || inverted ? (
+          <Label
+            value={thrusting ? 'THRUSTERS' : 'INVERTED'}
+            fontSize={8 * g}
+            color={thrusting ? ACCENT : PINK}
+            textAlign="bottom-right"
+            textWrap="nowrap"
+            uiTransform={{ margin: { right: 4 * g, bottom: 3 * g } }}
+          />
+        ) : null}
+        <UiEntity
+          uiTransform={{ width: 15 * g, height: 15 * g, margin: { bottom: 3 * g }, justifyContent: 'center', alignItems: 'center' }}
+          uiBackground={on ? { color: ACCENT } : asking ? { color: rgb(0x3ad1ff, 0.4) } : undefined}
+        >
+          {on || asking ? <Icon name="bolt" size={11 * g} /> : null}
+        </UiEntity>
+      </UiEntity>
+      <UiEntity uiTransform={{ width: '100%', flexDirection: 'row', margin: { bottom: 4 * g } }}>{segments}</UiEntity>
+      <UiEntity uiTransform={{ width: '100%', height: 10 * g, flexDirection: 'row', alignItems: 'center' }}>
+        <Icon name="gas" size={9 * g} margin={4 * g} />
+        <UiEntity uiTransform={{ flexGrow: 1, height: 4 * g }} uiBackground={{ color: rgb(0xffffff, 0.16) }}>
+          <UiEntity uiTransform={{ width: `${charge * 100}%`, height: '100%' }} uiBackground={empty ? { color: PINK } : BG_CHARGE} />
+        </UiEntity>
+        <Label value={`${Math.round(charge * 100)}%`} fontSize={8 * g} color={MUTED} textAlign="middle-right" textWrap="nowrap" uiTransform={{ width: 26 * g }} />
+      </UiEntity>
     </UiEntity>
   )
 }
@@ -1644,6 +1842,16 @@ function ConnectionPill() {
   // A single bounded line keeps mobile diagnostics out of the carousel and native corners.
   if (isMobile()) {
     const g = gridScale()
+    // In a race it shrinks to a dot and the two numbers, above the race column.
+    if (inRace()) {
+      const line = hud.trackMismatch || !hud.connected ? short(text, 22) : `${Math.round(hud.pingMs)} MS · ${Math.round(hud.fps)} FPS`
+      return (
+        <UiEntity uiTransform={{ width: 128 * g, height: 16 * g, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }} uiBackground={{ color: PILL }}>
+          <UiEntity uiTransform={{ width: 5 * g, height: 5 * g, margin: { right: 5 * g } }} uiBackground={{ color: bad ? PINK : GOOD }} />
+          <Label value={line} fontSize={8 * g} color={bad || slow ? PINK : CAPTION} textAlign="middle-center" textWrap="nowrap" />
+        </UiEntity>
+      )
+    }
     return (
       <UiEntity uiTransform={{ width: 363 * g, height: 24 * g, justifyContent: 'center', alignItems: 'center' }} uiBackground={{ color: PILL }}>
         <Label value={short(text, 44)} fontSize={14 * g} color={bad || slow ? PINK : CAPTION} textAlign="middle-center" textWrap="nowrap" />
@@ -1681,7 +1889,14 @@ const CONTROLS_PEEK_MS = 5000
 
 function BottomRight() {
   const mobile = isMobile()
-  if (mobile) return <UiEntity uiTransform={{ positionType: 'absolute', position: { right: 12 * gridScale(), top: 4 * gridScale() } }}><ConnectionPill /></UiEntity>
+  if (mobile) {
+    const b = gridBox(533, 4, 128, 16)
+    return (
+      <UiEntity uiTransform={{ positionType: 'absolute', position: inRace() ? { left: b.left, top: b.top } : { right: 12 * gridScale(), top: 4 * gridScale() } }}>
+        <ConnectionPill />
+      </UiEntity>
+    )
+  }
   const folded = hud.phase === 'racing' || hud.phase === 'finished'
   // A narrow lobby has the setup card across the screen, legend or not.
   const crowded = screen.narrow && hud.phase === 'lobby' && !hud.menuMinimised
@@ -1749,6 +1964,15 @@ function gridBox(x: number, y: number, w: number, h: number): { left: number; to
 }
 
 /**
+ * How far left, in grid units, to move a box so it reaches the physical left edge. ReactEcs
+ * fits the VIRTUAL_WIDTH canvas into a wider viewport and centres it, so x = 0 lands half the
+ * slack in from the edge. Never positive: with no slack there is nothing to compensate.
+ */
+function leftSlack(): number {
+  return Math.min(0, -(screen.width - VIRTUAL_WIDTH) / 2 / gridScale())
+}
+
+/**
  * A button that acts as a held key: down on touch, up on release or when the finger slides
  * off it, as GolfCraft's hold buttons do.
  */
@@ -1760,7 +1984,8 @@ function HoldButton(props: {
   held: boolean
   set: (on: boolean) => void
 }) {
-  const b = gridBox(...props.box)
+  const [x, y, w, h] = props.box
+  const b = gridBox(x + leftSlack(), y, w, h)
   const g = gridScale()
   return (
     <UiEntity
@@ -1804,8 +2029,8 @@ function NativeTag(props: { key?: string; box: [number, number, number, number];
       }}
       uiBackground={{ color: rgb(0x061224, 0.8) }}
     >
-      {props.icon !== undefined ? <Icon name={props.icon} size={11 * g} margin={3 * g} /> : null}
-      <Label value={props.label} fontSize={10 * g} color={INK} textAlign="middle-center" textWrap="nowrap" />
+      {props.icon !== undefined ? <Icon name={props.icon} size={10 * g} margin={3 * g} /> : null}
+      <Label value={props.label} fontSize={9 * g} color={INK} textAlign="middle-center" textWrap="nowrap" />
     </UiEntity>
   )
 }
@@ -1846,10 +2071,12 @@ function BrakeButton() {
 /**
  * Driving controls for a touch explorer, while racing.
  *
- * On the left, ours: steer left and right, and LIFT for the thrusters above them, clear of
- * the explorer's joystick, which does nothing in a race because the avatar's movement is
+ * On the left, ours, flush with the screen's left edge: steer left and right, and LIFT for
+ * the thrusters above them, clear of the explorer's joystick, which does nothing in a race because the avatar's movement is
  * locked. On the right, the explorer's own buttons do the driving (jump is the throttle,
- * double-tapped for boost; E rolls, F respawns; see `input.ts`) and carry a caption each.
+ * double-tapped for boost; E rolls, F respawns; see `input.ts`) and carry a caption each:
+ * RESPAWN and ROLL sit to the left of F (543-576 x 244-277 on the grid) and E (510-542 x
+ * 276-308), centred on them and ending 3 short of their edge, so neither covers a button.
  * The brake is ours, a round button among theirs and made to look like one: left of the
  * hand button, level with it. The hand itself is IA_POINTER, which every touch on a phone
  * also fires, so it is not used.
@@ -1865,13 +2092,13 @@ function MobileControls() {
   }
   return (
     <UiEntity uiTransform={{ positionType: 'absolute', position: { left: 0, top: 0 }, width: '100%', height: '100%' }}>
-      <HoldButton box={[12, 82, 264, 54.6]} icon="up" label="LIFT" held={touch.lift} set={(on) => { touch.lift = on }} />
-      <HoldButton box={[12, 144, 128, 104]} icon="left" label="LEFT" held={touch.left} set={(on) => { touch.left = on }} />
-      <HoldButton box={[148, 144, 128, 104]} icon="right" label="RIGHT" held={touch.right} set={(on) => { touch.right = on }} />
+      <HoldButton box={[0, 82, 264, 54.6]} icon="up" label="LIFT" held={touch.lift} set={(on) => { touch.lift = on }} />
+      <HoldButton box={[0, 144, 128, 104]} icon="left" label="LEFT" held={touch.left} set={(on) => { touch.left = on }} />
+      <HoldButton box={[136, 144, 128, 104]} icon="right" label="RIGHT" held={touch.right} set={(on) => { touch.right = on }} />
       <BrakeButton />
-      <NativeTag box={[424, 240, 70, 18]} label="RESPAWN" />
-      <NativeTag box={[440, 285, 54, 18]} label="ROLL" />
-      <NativeTag box={[548, 358, 80, 16]} icon="pedal" label="THROTTLE" />
+      <NativeTag box={[484, 252, 56, 16]} label="RESPAWN" />
+      <NativeTag box={[467, 284, 40, 16]} label="ROLL" />
+      <NativeTag box={[548, 358, 80, 16]} icon="pedal" label="2TAP=BOOST" />
     </UiEntity>
   )
 }
