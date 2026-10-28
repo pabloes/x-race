@@ -161,10 +161,10 @@ export function statsPage(
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="refresh" content="30">
-<title>ELON ROADSTER RACE — stats</title>
+<title>ELON RACE — stats</title>
 <style>${STYLE}</style></head>
 <body>
-  <h1>ELON ROADSTER RACE</h1>
+  <h1>ELON RACE</h1>
   <p class="sub">${escape(engine)} · ${rooms} room(s) · ${players} online · up since ${when(s.startedAt)}</p>
   <div class="cards">
     <div class="card"><div class="n">${s.uniqueVisitors}</div><div class="l">unique wallets</div></div>

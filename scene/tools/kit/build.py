@@ -39,6 +39,7 @@ def parse():
     ap = argparse.ArgumentParser(prog="build.py")
     ap.add_argument("--theme", default="city", choices=sorted(THEMES))
     ap.add_argument("--no-renders", action="store_true")
+    ap.add_argument("--piece", choices=sorted(P.SPEC), help="Rebuild only one piece")
     return ap.parse_args(argv)
 
 
@@ -163,7 +164,7 @@ def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
 
     K = P.Kit(theme)
-    built, missing = P.build_all(K, spec["pieces"])
+    built, missing = P.build_all(K, [a.piece] if a.piece else spec["pieces"])
     if missing:
         raise SystemExit(f"[kit] theme '{a.theme}' lists pieces with no builder yet: {', '.join(missing)}")
     os.makedirs(out_dir, exist_ok=True)
@@ -172,6 +173,9 @@ def main():
         p.recentre()
     tmp = tempfile.mkdtemp(prefix=f"kit-{a.theme}-")
     manifest, failures, report = {}, [], []
+    if a.piece:
+        with open(os.path.join(out_dir, "manifest.json")) as f:
+            manifest = json.load(f)
     for p in built:
         path = os.path.join(out_dir, p.name + ".glb")
         atlases, materials = texture_piece(p, K, theme, tmp)

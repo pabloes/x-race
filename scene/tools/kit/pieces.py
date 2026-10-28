@@ -138,7 +138,7 @@ def paint_start_band(c):
     line = c.h * 0.06
     c.rect(end, line * 1.2, c.w - end, line * 2.2, "band_line")
     c.rect(end, c.h - line * 2.2, c.w - end, c.h - line * 1.2, "band_line")
-    c.stamp_text("ELON ROADSTER RACE", c.w / 2, c.h / 2, c.w - 2 * end - c.h * 0.6, c.h * 0.56, "band_text")
+    c.stamp_text("ELON RACE", c.w / 2, c.h / 2, c.w - 2 * end - c.h * 0.6, c.h * 0.56, "band_text")
 
 
 def paint_start_tower(c):

@@ -57,9 +57,12 @@ export class Rooms {
   }
 
   join(name: string, connection: Connection, nowMs: number, address?: string): Seat | null {
-    const player = this.shared.join(name, connection, nowMs, address)
+    const room = this.build('solo')
+    const player = room.join(name, connection, nowMs, address)
     if (!player) return null
-    const seat: Seat = { room: this.shared, playerId: player.id, name, address }
+    room.onBotCount(1)
+    const seat: Seat = { room, playerId: player.id, name, address }
+    this.solo.set(connection, room)
     this.seats.set(connection, seat)
     return seat
   }

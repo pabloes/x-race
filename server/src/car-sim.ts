@@ -27,6 +27,8 @@ import {
   DRIVABLE_HALF_WIDTH,
   lineOffset,
   respawnFor,
+  spawnHeightAt,
+  type Surface,
   type Track,
   type Trigger
 } from '../../shared/tracks'
@@ -58,6 +60,7 @@ export class CarSim {
   private checkpoints: Trigger[] = []
   private boostTriggers: Trigger[] = []
   private invertTriggers: Trigger[] = []
+  private drivableSurfaces: Surface[] = []
 
   charge: number = CHARGE.initial
   lap = 0
@@ -89,6 +92,9 @@ export class CarSim {
   private restingMs = 0
   private stuckMs = 0
   private respawnMs = 0
+  private offCircuitCheckMs = 0
+  private offCircuitMs = 0
+  private lastSurface = 0
   /** Last known position along the racing line, the hint for the off-track test. */
   private lineIndex = 0
   private padCooldown = new Map<string, number>()
@@ -114,7 +120,13 @@ export class CarSim {
     this.checkpoints = checkpointsOf(track)
     this.boostTriggers = track.triggers.filter((t) => t.kind === 'boost')
     this.invertTriggers = track.triggers.filter((t) => t.kind === 'invert')
+    this.drivableSurfaces = track.surfaces.filter((surface) =>
+      surface.kind === 'road' || surface.kind === 'ramp' || surface.kind === 'ceiling' || surface.kind === 'startline'
+    )
     this.lineIndex = 0
+    this.offCircuitCheckMs = 0
+    this.offCircuitMs = 0
+    this.lastSurface = 0
   }
 
   setInput(bits: number): void {
@@ -146,6 +158,9 @@ export class CarSim {
     this.restingMs = 0
     this.stuckMs = 0
     this.respawnMs = 0
+    this.offCircuitCheckMs = 0
+    this.offCircuitMs = 0
+    this.lastSurface = 0
     this.clearedObstacles.clear()
     this.padCooldown.clear()
   }
@@ -181,6 +196,7 @@ export class CarSim {
           y: point.pos.y,
           z: point.pos.z - Math.sin(across) * lane
         }
+        spot.y = spawnHeightAt(this.track, spot.x, spot.z, point.yaw)
         v.reset(spot, point.yaw)
         this.thrusting = false
         this.inverted = false
@@ -188,6 +204,8 @@ export class CarSim {
         this.airborneMs = 0
         this.restingMs = 0
         this.stuckMs = 0
+        this.offCircuitCheckMs = 0
+        this.offCircuitMs = 0
         events.push({ t: 'respawn', id: this.id })
       }
       v.updateVehicle(dt)
@@ -513,6 +531,28 @@ export class CarSim {
     // --- Recovery ---
     if (pos.y < RACE.killY || pos.y > this.track.extent) {
       this.requestRespawn()
+    }
+    if (racing) {
+      this.offCircuitCheckMs += dt * 1000
+      if (this.offCircuitCheckMs >= RACE.offCircuitCheckMs) {
+        const elapsed = this.offCircuitCheckMs
+        this.offCircuitCheckMs = 0
+        let onCircuit = false
+        const count = this.drivableSurfaces.length
+        for (let offset = 0; offset < count; offset++) {
+          const index = (this.lastSurface + offset) % count
+          if (pointInBox(pos, this.drivableSurfaces[index], RACE.offCircuitMargin)) {
+            this.lastSurface = index
+            onCircuit = true
+            break
+          }
+        }
+        this.offCircuitMs = onCircuit ? 0 : this.offCircuitMs + elapsed
+        if (this.offCircuitMs >= RACE.offCircuitResetMs) this.requestRespawn()
+      }
+    } else {
+      this.offCircuitCheckMs = 0
+      this.offCircuitMs = 0
     }
     const uprightDot = vdot(localUp, UP) * (this.inverted ? -1 : 1)
     const onRoof = this.grounded && uprightDot < Math.cos((TRICK.cleanLandingDegrees * Math.PI) / 180)

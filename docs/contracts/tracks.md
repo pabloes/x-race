@@ -107,7 +107,9 @@ export type PathPoint = { pos: Vec3; dir: Vec3; hint?: 'boost' | 'thrust' | 'bra
   calzada a la altura que tenga.
 - `respawnFor(track, cp)` y `lineOffset(track, pos, hint)` toman el circuito por parámetro.
   `spawnHeightAt(track, x, z)` da la altura a la que poner un coche: sobre la calzada más alta
-  en ese punto (las losas de techo no cuentan, así que bajo el túnel es la calzada de abajo).
+  en ese punto, incluyendo rampas (las losas de techo no cuentan). Con `yaw` opcional añade
+  holgura para el chasis horizontal sobre pendientes. El respawn calcula esta altura después
+  de aplicar el desplazamiento lateral de cada coche.
 
 ## Pruebas
 

@@ -15,7 +15,7 @@ Run it from the scene directory, piping the track in:
     (cd ../server && npx tsx -e "import {TRACK} from '../shared/track'; \\
         process.stdout.write(JSON.stringify(TRACK))") | python3 tools/make-thumbnail.py
 
-Output: images/elon-roadster-race.png at 1920x1080. Decentraland documents 16:9 at that size
+Output: images/elon-race.png at 1920x1080. Decentraland documents 16:9 at that size
 for `display.navmapThumbnail`, and asks that text and logos stay inside the central 1080x1080
 square, because the cards on Places crop the sides — hence SAFE_LEFT/SAFE_RIGHT below. The
 file name matters too: the CLI warns on every deploy if it is still the template's
@@ -34,7 +34,7 @@ WIDTH, HEIGHT = 1920, 1080
 # Places crops to the central square, so nothing that must be read goes outside it.
 SAFE_LEFT, SAFE_RIGHT = (WIDTH - HEIGHT) / 2, (WIDTH + HEIGHT) / 2
 OUT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'images',
-                   'elon-roadster-race.png')
+                   'elon-race.png')
 
 # Camera. Yaw turns the circuit so the start straight runs toward the viewer; pitch is the
 # tilt. Both are orthographic — a perspective camera on a square this wide just bends the walls.
@@ -318,7 +318,7 @@ def draw_title(base):
 
     # The title has to live inside the central square Places keeps, so it is sized to fit
     # rather than set at one size that happened to look right for one wording.
-    title, tracking, limit = 'ELON ROADSTER RACE', 6, HEIGHT - 140
+    title, tracking, limit = 'ELON RACE', 6, HEIGHT - 140
     size = 104
     while size > 40:
         font = load_font(size)

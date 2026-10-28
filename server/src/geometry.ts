@@ -7,11 +7,13 @@
  */
 
 import { quatConjugate, quatFromEulerDegrees, quatRotate, type Vec3 } from '../../shared/math'
-import type { Trigger } from '../../shared/tracks'
+import type { Euler } from '../../shared/tracks'
 
-const cache = new WeakMap<Trigger, { inverse: ReturnType<typeof quatFromEulerDegrees> }>()
+type OrientedBox = { pos: Vec3; size: Vec3; rot: Euler }
 
-export function pointInBox(p: Vec3, box: Trigger): boolean {
+const cache = new WeakMap<OrientedBox, { inverse: ReturnType<typeof quatFromEulerDegrees> }>()
+
+export function pointInBox(p: Vec3, box: OrientedBox, margin: Vec3 = { x: 0, y: 0, z: 0 }): boolean {
   let entry = cache.get(box)
   if (!entry) {
     entry = { inverse: quatConjugate(quatFromEulerDegrees(box.rot[0], box.rot[1], box.rot[2])) }
@@ -23,8 +25,8 @@ export function pointInBox(p: Vec3, box: Trigger): boolean {
     z: p.z - box.pos.z
   })
   return (
-    Math.abs(local.x) <= box.size.x / 2 &&
-    Math.abs(local.y) <= box.size.y / 2 &&
-    Math.abs(local.z) <= box.size.z / 2
+    Math.abs(local.x) <= box.size.x / 2 + margin.x &&
+    Math.abs(local.y) <= box.size.y / 2 + margin.y &&
+    Math.abs(local.z) <= box.size.z / 2 + margin.z
   )
 }

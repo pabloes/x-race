@@ -1,4 +1,4 @@
-# ELON ROADSTER RACE: reglas del proyecto
+# ELON RACE: reglas del proyecto
 
 Lee `README.md` para entender el juego; `docs/architecture.md` para la estructura actual y la
 que viene; `docs/contracts/` para las interfaces entre módulos; `docs/tasks.md` para saber

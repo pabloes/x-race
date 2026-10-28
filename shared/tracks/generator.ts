@@ -1564,10 +1564,10 @@ export function respawnFor(track: Track, checkpointIndex: number): Spawn {
  * the grid uses. Ceiling slabs are not road, so under the tunnel this finds the road beneath
  * it; where there is no road it is the parcel floor.
  */
-export function spawnHeightAt(track: Track, x: number, z: number): number {
+export function spawnHeightAt(track: Track, x: number, z: number, yaw?: number): number {
   let top = -Infinity
   for (const s of track.surfaces) {
-    if (s.kind !== 'road') continue
+    if (s.kind !== 'road' && s.kind !== 'ramp') continue
     const q = quatFromEulerDegrees(s.rot[0], s.rot[1], s.rot[2])
     const up = quatRotate(q, { x: 0, y: 1, z: 0 })
     // The sides and the roof of the corkscrew are road too, but nowhere to put a car.
@@ -1575,7 +1575,14 @@ export function spawnHeightAt(track: Track, x: number, z: number): number {
     const face = vadd(s.pos, vscale(up, s.size.y / 2))
     const y = face.y - (up.x * (x - face.x) + up.z * (z - face.z)) / up.y
     const local = quatRotate(quatConjugate(q), { x: x - face.x, y: y - face.y, z: z - face.z })
-    if (Math.abs(local.x) <= s.size.x / 2 && Math.abs(local.z) <= s.size.z / 2) top = Math.max(top, y)
+    if (Math.abs(local.x) <= s.size.x / 2 && Math.abs(local.z) <= s.size.z / 2) {
+      // Respawns reset upright: lift the entire chassis above the slope, not only its centre.
+      const angle = ((yaw ?? 0) * Math.PI) / 180
+      const clearance = yaw === undefined ? 0 :
+        (Math.abs(up.x * Math.cos(angle) - up.z * Math.sin(angle)) * CAR.halfExtents.x +
+          Math.abs(up.x * Math.sin(angle) + up.z * Math.cos(angle)) * CAR.halfExtents.z) / up.y
+      top = Math.max(top, y + clearance)
+    }
   }
   return (top === -Infinity ? ROAD_Y : top) - ROAD_Y + RIDE_HEIGHT
 }

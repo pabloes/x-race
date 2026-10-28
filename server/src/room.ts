@@ -303,13 +303,27 @@ export class Room {
   }
 
   /**
-   * LEAVE RACE: this player steps out, the race carries on.
-   *
-   * It used to put the *room* back in the lobby, which meant one person leaving ended
-   * everyone else's race. A player who leaves becomes a spectator; the race ends on its
-   * own terms, and only when the grid is empty does the room fall back to the lobby.
+   * SOLO ends immediately and resets the private grid. In multiplayer only this player
+   * becomes a spectator, so leaving cannot interrupt everyone else's race.
    */
   onLeaveRace(id: number, nowMs: number): void {
+    if (!this.players.has(id)) return
+    if (this.mode === 'solo') {
+      this.phase = 'lobby'
+      this.phaseEndsMs = 0
+      this.startRequested = false
+      this.raceStartMs = 0
+      this.firstFinishMs = 0
+      this.votes.clear()
+      for (const player of this.players.values()) {
+        player.spectator = false
+        player.ready = false
+        player.car.vehicle.setGravityScale(1)
+      }
+      this.resetGrid(nowMs)
+      this.playersDirty = true
+      return
+    }
     this.setSpectator(id, true, nowMs)
   }
 

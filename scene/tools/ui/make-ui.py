@@ -502,7 +502,7 @@ def erode_px(mask, px):
 
 
 def checker_flag(width, height, shear):
-    """The waving chequered flag that leads into ROADSTER, fading out to the left."""
+    """The waving chequered flag that leads into the title, fading out to the left."""
     cols, rows = 6, 3
     cw, ch = width / cols, height / rows
     m_white = Image.new('L', (width, height), 0)
@@ -534,34 +534,26 @@ def make_logo(size=(1024, 256)):
     shear = 0.24
     big_scale = 3
     elon = word_mask('ELON', 176 * big_scale, shear, 4 * big_scale, squash=0.66)
-    road = word_mask('ROADSTER', 76 * big_scale, shear, 6 * big_scale, squash=0.9)
-    race = word_mask('RACE', 76 * big_scale, shear, 6 * big_scale, squash=0.9)
+    race = word_mask('RACE', 176 * big_scale, shear, 4 * big_scale, squash=0.66)
 
     elon_img, em = styled_word(
         elon, [(0, (255, 255, 255, 255)), (0.6, (236, 242, 250, 255)), (1, (196, 210, 228, 255))],
         (14, 24, 44, 255), (70, 92, 130, 255), (190, 230, 255, 130), 6 * big_scale)
-    road_img, rm = styled_word(
-        road, [(0, (200, 250, 255, 255)), (0.45, (90, 222, 255, 255)), (1, (30, 150, 230, 255))],
-        (6, 22, 48, 255), (14, 70, 130, 255), (58, 209, 255, 190), 4 * big_scale)
     race_img, cm = styled_word(
         race, [(0, (255, 180, 196, 255)), (0.45, (255, 84, 116, 255)), (1, (214, 30, 76, 255))],
         (40, 8, 22, 255), (120, 16, 44, 255), (255, 77, 109, 190), 4 * big_scale)
     flag = checker_flag(150 * big_scale, 78 * big_scale, shear)
 
-    # Layout in the reference's proportions: ELON on top, set in from the left; the flag
-    # under its first letter, leading into ROADSTER RACE, which runs further right.
-    line2_top = elon.size[1] + 12 * big_scale
+    # A single wide wordmark keeps the shorter name legible in the existing HUD slot.
+    line2_top = 0
     flag_x = 0
-    road_x = flag_x + flag.size[0] - 20 * big_scale
-    race_x = road_x + road.size[0] + 22 * big_scale
-    # ELON starts a little before ROADSTER and ends about where it does.
-    elon_x = road_x + road.size[0] - elon.size[0] + 10 * big_scale
+    elon_x = flag.size[0] + 16 * big_scale
+    race_x = elon_x + elon.size[0] + 32 * big_scale
     width = race_x + race.size[0] + 60 * big_scale
-    height = line2_top + road.size[1] + 40 * big_scale
+    height = max(elon.size[1], race.size[1]) + 40 * big_scale
     canvas = Image.new('RGBA', (width + 200, height + 200), (0, 0, 0, 0))
     o = 100
-    canvas.alpha_composite(flag, (o + flag_x, o + line2_top + road.size[1] // 2 - flag.size[1] // 2 + 6 * big_scale))
-    canvas.alpha_composite(road_img, (o + road_x - rm, o + line2_top - rm))
+    canvas.alpha_composite(flag, (o + flag_x, o + elon.size[1] // 2 - flag.size[1] // 2))
     canvas.alpha_composite(race_img, (o + race_x - cm, o + line2_top - cm))
     canvas.alpha_composite(elon_img, (o + elon_x - em, o - em))
 

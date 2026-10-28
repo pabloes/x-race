@@ -441,6 +441,12 @@ export const RACE = {
   /** A car that falls below this Y is respawned at its last checkpoint. */
   killY: -8,
   respawnDelayMs: 1200,
+  /** Continuous time outside every oriented drivable surface before recovery. */
+  offCircuitResetMs: 3000,
+  /** Off-circuit checks do not need to run at the 60 Hz physics rate. */
+  offCircuitCheckMs: 100,
+  /** Extra local-space reach: road width, surface normal and direction of travel. */
+  offCircuitMargin: { x: 8, y: 10, z: 4 },
   maxPlayers: 8,
   /**
    * Most bots a room will field, whatever the menu asks for.

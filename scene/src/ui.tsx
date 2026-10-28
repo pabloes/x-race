@@ -176,7 +176,7 @@ export const hud: HudState = {
   votes: {},
   myVote: null,
   mode: 'solo',
-  bots: 0,
+  bots: 1,
   joining: false,
   spectator: false,
   menuMinimised: false,
@@ -1034,7 +1034,7 @@ function MobileRaceCard() {
     ['TIME', formatTime(hud.raceTimeMs)]
   ]
   return (
-    <UiEntity uiTransform={{ positionType: 'absolute', position: { left: b.left, top: b.top }, width: b.width, flexDirection: 'column' }}>
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { right: leftSlack() * g, top: b.top }, width: b.width, flexDirection: 'column' }}>
       {finished ? (
         <UiEntity uiTransform={{ width: '100%', flexDirection: 'column', padding: 4 * g }} uiBackground={{ color: WELL }}>
           <Results />
@@ -1393,6 +1393,8 @@ function RightColumn() {
  * While a race is on, the only thing the setup card still owes a driver is a way out:
  * one small tag at the top left, so the middle of the screen belongs to the circuit.
  */
+let confirmLeave = false
+
 function LeaveTag() {
   if (hud.spectator || !inRace()) return null
   return (
@@ -1406,7 +1408,7 @@ function LeaveTag() {
         padding: isMobile() ? { left: 8 * gridScale(), right: 10 * gridScale() } : { left: 16, right: 20 }
       }}
       uiBackground={BG_TAG}
-      onMouseDown={() => menu.leaveRace()}
+      onMouseDown={() => { confirmLeave = true }}
     >
       <Label value="LEAVE RACE" fontSize={isMobile() ? 9 * gridScale() : 14} color={INK} textAlign="middle-center" textWrap="nowrap" />
     </UiEntity>
@@ -1414,6 +1416,28 @@ function LeaveTag() {
 }
 
 // --- Messages -----------------------------------------------------------------------------
+
+function LeaveConfirmation() {
+  if (!inRace() || hud.spectator || !hud.connected) confirmLeave = false
+  if (!confirmLeave) return null
+  const s = isMobile() ? gridScale() * 0.65 : 1
+  return (
+    <UiEntity uiTransform={{ positionType: 'absolute', width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center', pointerFilter: 'block' }} uiBackground={{ color: rgb(0x020817, 0.8) }}>
+      <UiEntity uiTransform={{ width: 420 * s, padding: 24 * s, flexDirection: 'column' }} uiBackground={{ color: WELL }}>
+        <Label value="LEAVE RACE?" fontSize={26 * s} color={INK} textAlign="middle-center" />
+        <Label value={hud.mode === 'solo' ? 'This ends your solo race.' : 'You will spectate. The race continues.'} fontSize={17 * s} color={MUTED} textAlign="middle-center" />
+        <UiEntity uiTransform={{ width: '100%', height: 50 * s, margin: { top: 18 * s }, flexDirection: 'row' }}>
+          <UiEntity uiTransform={{ width: '50%', height: '100%', justifyContent: 'center' }} uiBackground={BG_ON} onMouseDown={() => { confirmLeave = false }}>
+            <Label value="CANCEL" fontSize={18 * s} color={INK} textAlign="middle-center" />
+          </UiEntity>
+          <UiEntity uiTransform={{ width: '50%', height: '100%', justifyContent: 'center' }} uiBackground={BG_OFF} onMouseDown={() => { confirmLeave = false; hud.menuMinimised = false; menu.leaveRace() }}>
+            <Label value="LEAVE RACE" fontSize={18 * s} color={INK} textAlign="middle-center" />
+          </UiEntity>
+        </UiEntity>
+      </UiEntity>
+    </UiEntity>
+  )
+}
 
 /**
  * Trick, lap and respawn notices, centred at the top. A notice is written as
@@ -1892,7 +1916,7 @@ function BottomRight() {
   if (mobile) {
     const b = gridBox(533, 4, 128, 16)
     return (
-      <UiEntity uiTransform={{ positionType: 'absolute', position: inRace() ? { left: b.left, top: b.top } : { right: 12 * gridScale(), top: 4 * gridScale() } }}>
+      <UiEntity uiTransform={{ positionType: 'absolute', position: inRace() ? { right: leftSlack() * gridScale(), top: b.top } : { right: 12 * gridScale(), top: 4 * gridScale() } }}>
         <ConnectionPill />
       </UiEntity>
     )
@@ -2013,14 +2037,16 @@ function HoldButton(props: {
  * A caption beside one of the explorer's own buttons. Their icons are the explorer's and
  * cannot be changed, so what they do in this scene is said next to them, outside the circle.
  */
-function NativeTag(props: { key?: string; box: [number, number, number, number]; icon?: string; label: string }) {
+function NativeTag(props: { key?: string; box: [number, number, number, number]; icon?: string; label: string; bottom?: number }) {
   const b = gridBox(...props.box)
   const g = gridScale()
   return (
     <UiEntity
       uiTransform={{
         positionType: 'absolute',
-        position: { left: b.left, top: b.top },
+        position: props.bottom === undefined
+          ? { left: b.left, top: b.top }
+          : { right: (GRID_W - props.box[0] - props.box[2] + leftSlack()) * g, bottom: props.bottom * g },
         width: b.width,
         height: b.height,
         flexDirection: 'row',
@@ -2098,7 +2124,7 @@ function MobileControls() {
       <BrakeButton />
       <NativeTag box={[484, 252, 56, 16]} label="RESPAWN" />
       <NativeTag box={[467, 284, 40, 16]} label="ROLL" />
-      <NativeTag box={[548, 358, 80, 16]} icon="pedal" label="2TAP=BOOST" />
+      <NativeTag box={[548, 358, 80, 16]} bottom={4} label="2TAP=BOOST" />
     </UiEntity>
   )
 }
@@ -2125,6 +2151,7 @@ function Hud() {
       <BigMessage />
       <WayBackArrow />
       <Toast />
+      <LeaveConfirmation />
     </UiEntity>
   )
 }

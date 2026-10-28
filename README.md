@@ -1,4 +1,4 @@
-# ELON ROADSTER RACE — Decentraland
+# ELON RACE — Decentraland
 
 Carreras multijugador con **físicas autoritativas en servidor**: Rapier a paso fijo de 60 Hz
 en Node, instantáneas a 30 Hz por WebSocket, e interpolación en el cliente de Decentraland.
@@ -92,7 +92,7 @@ título y el coche; lo que se pierde por los lados es el logo de la esquina y pa
 fondo.
 
 `scene/tools/make-thumbnail.py` sigue en el repo y genera una alternativa isométrica a
-partir del trazado real (`images/elon-roadster-race.png`), útil si alguna vez interesa que
+partir del trazado real (`images/elon-race.png`), útil si alguna vez interesa que
 la miniatura muestre el circuito que se conduce en lugar de un cartel.
 
 ## El coche

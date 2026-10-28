@@ -23,6 +23,16 @@ export function cityScenarios(track: Track): Scenario[] {
   const grid = track.spawns[0]
 
   return [
+    // A recovery at CP 2 used to place the chassis beneath the ramp over the road.
+    {
+      name: 'respawn ramp CP 2',
+      start: { pos: { ...grid.pos, y: -10 }, yaw: grid.yaw },
+      speed: 0,
+      seconds: 4,
+      bits: 0,
+      lastCp: 1,
+      requireRespawn: true
+    },
     // Jump: approach the launch ramp at a range of speeds. Fast runs must clear the pillars
     // and land on the road beyond; slow runs are expected to fall short.
     ...[18, 22, 26, 30, 34].map((speed) => ({
