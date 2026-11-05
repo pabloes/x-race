@@ -21,7 +21,7 @@
 
 | | |
 |---|---|
-| **Visual GDD** | [gdd.pdf](gdd.pdf): 14-page visual deck of Season 01 (editor, modular catalog, ranked, tournaments, wearables); its art is concept, not gameplay screenshots |
+| **Visual GDD** | [gdd.pdf](gdd.pdf): 9-page visual deck of Season 01 (editor, ranked, tournaments, wearables, and the full track and environment catalogs); its art is concept, not gameplay screenshots |
 | **Player promise** | You are a roadster pilot. You race circuits the community builds, while thrusters and jumps send you upside down. |
 | **Primary player** | For players who already enjoy arcade time-trial racers, arriving alone or with friends, looking for three-minute races they can improve every day. |
 | **Current status** | Playable core loop in a World: two circuits (City, Skyline) chosen by lobby vote, solo races with up to 4 bots, one shared multiplayer room for up to 8, keyboard and phone controls, records per circuit on a server stats page. Ghost-mode netcode (each client simulates its own car, the server validates the race, cars never collide) is integrated and being checked in a test build before the public World gets it. Playable link: [xrace.dcl.eth](https://decentraland.org/jump/?realm=xrace.dcl.eth). |
